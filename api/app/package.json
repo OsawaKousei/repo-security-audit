@@ -1,0 +1,12 @@
+{
+  "name": "@repo-sentinel/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/local.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start": "node dist/local.js"
+  }
+}

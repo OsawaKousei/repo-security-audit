@@ -1,0 +1,30 @@
+services:
+  frontend:
+    image: "node:${NODE_VERSION:?Set NODE_VERSION in .env}-bookworm-slim"
+    working_dir: /workspace
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    volumes:
+      - ./:/workspace
+    environment:
+      NODE_ENV: development
+      npm_config_cache: /tmp/npm-cache
+    command: npm run dev -w frontend/app -- --host 0.0.0.0
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      - api
+    init: true
+
+  api:
+    image: "node:${NODE_VERSION:?Set NODE_VERSION in .env}-bookworm-slim"
+    working_dir: /workspace
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    volumes:
+      - ./:/workspace
+    environment:
+      NODE_ENV: development
+      npm_config_cache: /tmp/npm-cache
+    command: npm run dev -w api/app
+    ports:
+      - "127.0.0.1:3000:3000"
+    init: true
