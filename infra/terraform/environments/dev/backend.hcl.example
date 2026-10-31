@@ -1,0 +1,8 @@
+# Existing shared bucket from ref/apt-repo/infra/apt-repo/backend.hcl.
+# Only this application's dev key is used; never reuse the APT registry's key.
+bucket       = "terraform-state-bucket-103492189525-ap-northeast-1-an"
+key          = "kupac/repo-sentinel/dev/terraform.tfstate"
+region       = "ap-northeast-1"
+profile      = "kupacllc"
+encrypt      = true
+use_lockfile = true

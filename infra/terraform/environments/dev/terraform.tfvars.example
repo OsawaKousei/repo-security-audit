@@ -1,0 +1,24 @@
+aws_profile    = "kupacllc"
+aws_region     = "ap-northeast-1"
+aws_account_id = "103492189525"
+project_name   = "repo-sentinel"
+environment    = "dev"
+public_domain  = "repo-sentinel.prj.kupac.co.jp"
+
+acm_certificate_arn = "arn:aws:acm:us-east-1:103492189525:certificate/7b6cdfdb-5b63-4572-936c-f7362c471713"
+route53_zone_id      = "Z06893261CC94H6AKTJGK"
+
+tags = {}
+
+# Initial dev foundation: do not deploy unfinished Lambda entry points.
+enable_runtime = false
+
+# Set after Cognito user creation and Phase 4 clean artifact preparation.
+# allowed_user_sub     = "Cognito user sub"
+# api_artifact_path    = "/absolute/path/to/api.zip"
+# worker_artifact_path = "/absolute/path/to/worker.zip"
+# worker_npm_layer_arn = "arn:aws:lambda:ap-northeast-1:103492189525:layer:repo-sentinel-npm:1"
+
+# Set the notification destination and amount before enabling the runtime.
+# budget_monthly_usd = 10
+# budget_email       = "your-address@example.com"

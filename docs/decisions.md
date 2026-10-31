@@ -50,6 +50,14 @@
 | AI-02 | 呼び出し前の保存・永続予約、同一ジョブ再予約禁止。timeout/不正出力/成否不明でも自動再試行しない | AWS用の共有予算管理・実行復旧はPhase 4 |
 | COST-01 | 公式のProject Hard spend limit手順を確認。利用者が専用Projectの月額$10強制停止設定済みと回答。アプリにも永続日次・月次制限 | 管理画面・管理APIでの設定値や実上限到達は独立検証していない。環境追加時に確認 |
 
+## Terraform準備で確認した扱い（2026-11-01）
+
+利用者指定でAWS profileは `kupacllc`、リージョンは `ap-northeast-1`、Stateは参照元と同じ既存バケット、公開ホストはプロジェクト名に基づく `repo-sentinel.prj.kupac.co.jp` とする。既存のus-east-1 ACM証明書を利用し、bootstrapによるStateバケット新設と証明書の再発行は行わない。
+
+OPS-02の初期選択はTerraform `>= 1.10.0, < 2.0.0`、AWS Provider 6.69.1、S3 native lock。Stateキーをアプリ・環境専用に分ける。詳細設定と停止理由は [Terraformの準備状況](../infra/terraform/README.md) に記録した。SSO復旧後、指定アカウント・Stateキー未使用・発行済み証明書・公開DNSゾーンを読み取り確認した。S3公開アクセス遮断とAES256を確認し、利用者の承認後、VersioningをEnabledへ変更した（2026-11-01 03:41:24 JST）。15分後の03:56:25 JST以降をState書込再開の目安とする。Backendと6領域のmoduleを作成し、init前で停止する。
+
+DEV-05の初期構成はNode.js 24 x86_64のZIPとnpm Layerの組合せ。現在のローカルWorkerをAWSへ直接デプロイせず、AWS認証・SQS・分散費用管理・npm Layer対応を完了するまで `enable_runtime=false` とする。OPS-01の初期redriveはmaxReceiveCount 2、batch 1、Worker/ESM並列度2。アプリの同時監査上限1は別のDynamoDBロックで守る。OPS-03はログ14日、Queue/DLQ/Lambdaの基本アラームを定義し、アプリ固有の失敗指標はPhase 4で追加する。AWS予算の金額・メールは初回運用前に設定し、Projectタグのコスト配分有効化を確認する。
+
 ## 開発環境・ビルド
 
 | ID | 決めること | 担当文書・判断時点 |

@@ -33,4 +33,4 @@
 
 ユーザーの明示的な変更指示を優先する。リポジトリ構成は現行の `frontend/app`・`api/app`・`workers/security-audit/app` と `docker-compose.yaml` を正とする。
 
-`docs/plan/` の実装計画はGit管理対象とする。2026-11-01にPhase 1–2のローカル基本実装・実Workerを追加した。起動は[ルートREADME](../README.md)、実際の契約と検証根拠は[確定仕様](spec/README.md)を参照する。Cognito、Terraform、SQS、AWS統合は後続Phaseで実装する。
+`docs/plan/` の実装計画はGit管理対象とする。2026-11-01にPhase 1–2のローカル基本実装・実Workerを追加した。起動は[ルートREADME](../README.md)、実際の契約と検証根拠は[確定仕様](spec/README.md)を参照する。Terraformは[dev向け定義](../infra/terraform/README.md)をinit前まで準備済み。Cognito・アプリ用AWSリソースの構築、SQS、AWS統合は後続作業。

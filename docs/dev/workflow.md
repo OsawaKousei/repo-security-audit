@@ -45,7 +45,9 @@
 
 目的：AWS devと認証基盤を準備する。
 
-- Terraform Stateのbootstrapとdev環境定義。
+2026-11-01：dev向けTerraform定義を作成し、init前まで準備した。共有StateのVersioning有効化だけを承認後に実施済み。Cognitoやアプリ用AWSリソースは未作成で、Phase 3全体は未完了。[準備状況と次の手順](../../infra/terraform/README.md)を参照する。
+
+- Terraform Stateの設定とdev環境定義。今回は既存共有S3を利用するためbootstrapは作成しない。
 - Cognito User Pool、Managed Login、初期ユーザー、TOTP MFA。
 - Reactの認証統合、HonoのJWT検証・許可 `sub` の認可。
 - ローカルReactをdev User Poolにつなぎ、localhost Callback URLを登録。

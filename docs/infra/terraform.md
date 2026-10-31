@@ -4,6 +4,14 @@
 
 AWSリソースはTerraformで管理する。ローカル開発環境の変更に伴うAWS構成の変更は行わない。配置先は `infra/terraform`、ディレクトリは[リポジトリ構成](../dev/repository.md)に従う。
 
+## 現在の準備状況
+
+2026-11-01：利用者指定により、参照元と同じ `kupacllc`・東京リージョン・既存Stateバケットを使用する。公開ホストは `repo-sentinel.prj.kupac.co.jp`、証明書は指定されたus-east-1の既存ACMを使用し、本プロジェクトで再発行しない。
+
+dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。AWS上のアプリ用リソース作成・init・Providerによるvalidate・planは未実施。
+
+初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。具体的な切替条件・確認結果は上記READMEを参照する。
+
 ## 管理対象
 
 | 領域 | リソース |
@@ -39,7 +47,8 @@ PoC初期はdevのみでもよい。prodはdevで一連の動作を確認して�
 
 S3 Backendを使用する。
 
-- `bootstrap/` でState用S3 Bucketを作成する。
+- 今回は利用者の明示指示により、参照元と同じ既存State用S3 Bucketを使用する。新規bootstrapや既存バケットのimport・ポリシー変更は行わない。
+- dev専用キーを `kupac/repo-sentinel/dev/terraform.tfstate` とし、参照元のキーを共有しない。
 - S3 Versioningを有効にする。
 - S3ネイティブロックを使用する。
 - Stateの公開アクセスを禁止する。

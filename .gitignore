@@ -11,3 +11,6 @@ coverage/
 test-results/
 playwright-report/
 .local/
+
+ref/
+docs/plan/
