@@ -7,8 +7,8 @@
 - 最初に[ドキュメント一覧](docs/README.md)と[実装計画](docs/plan/implementation-plan.md)を読む。
 - 作業対象に応じて[構成](docs/architecture.md)、[開発環境](docs/dev/local-development.md)、[API](docs/plan/implementation-plan.md#api)、[Worker](docs/plan/implementation-plan.md#worker)を参照する。
 - 認証・外部入力・費用に関わる変更では[セキュリティ要件](docs/security.md)を読む。
-- 未実装の要件は `docs/plan/implementation-plan.md`、実装・検証済みの確定仕様は `docs/spec/` に記載する。計画を実装済みとして扱わない。
-- ユーザーの明示的な変更指示を優先し、[未確定事項](docs/decisions.md)の決定時は計画と関係するガイドを更新する。実装・検証後は確定仕様も記録する。
+- 未実装の機能要件は `docs/plan/implementation-plan.md`、共通要件・手順は[一覧の担当文書](docs/README.md)、実装・検証済みの確定仕様は `docs/spec/` に記載する。
+- ユーザーの明示的な変更指示を優先し、[未確定事項](docs/decisions.md)の決定時は担当文書を更新する。詳細を複数の文書へ複製しない。実装・検証後は確定仕様も記録する。
 
 ## 実装の原則
 
