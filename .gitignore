@@ -1,1 +1,10 @@
-# docs/plan/ の実装計画もGit管理対象とする。
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+docs/plan
