@@ -8,5 +8,14 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "start": "node dist/local.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "hono": "^4.13.14"
   }
 }
