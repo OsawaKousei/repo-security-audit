@@ -2,6 +2,8 @@
 
 本書は認証・外部入力・秘密情報・費用制限の基準を定める。ローカル開発環境の変更によってこれらの要件を緩和しない。
 
+Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。以下のCognito・AWS・実AI要件は後続Phaseで実装する。
+
 ## Cognito認証とユーザー認可
 
 - Cognito User Poolの自己登録を禁止する。

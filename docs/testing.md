@@ -1,6 +1,6 @@
 # 検証計画・受け入れ条件
 
-本文は検証すべき条件であり、現在の合格実績ではない。変更内容に応じて必要なテストを選ぶ。AWS固有の連携は実AWS devで確認する。
+本文は全Phaseの検証条件を管理する。Phase 1で実施した結果は[検証記録](spec/phase1-verification.md)を参照する。変更内容に応じて必要なテストを選ぶ。AWS固有の連携は実AWS devで確認する。
 
 ## 変更ごとの主な検証環境
 
@@ -24,18 +24,20 @@
 
 - [ ] UbuntuホストのVS Codeでモノレポ全体を編集できる。
 - [ ] Codex拡張機能からモノレポ全体を参照・変更できる。
-- [ ] ホストで `npm ci` を実行できる。
-- [ ] FrontendとAPIがComposeで起動する。
-- [ ] ホストのソース変更がコンテナへ即時反映される。
-- [ ] ReactのHMRが動作する。
-- [ ] APIのホットリロードが動作する。
-- [ ] ホストでTypeScript型チェックとテストを実行できる。
-- [ ] WorkerをComposeから直接実行できる。
-- [ ] DynamoDB Localとの通信が動作する。
-- [ ] コンテナへの個別IDE接続が不要である。
-- [ ] npm workspacesと単一の `package-lock.json` が維持される。
-- [ ] ホスト・コンテナ間でファイル所有権の問題が起きない。
-- [ ] 本番向けビルドがホストの `node_modules` に依存しない。
+- [x] ホストで `npm ci` を実行できる。
+- [x] FrontendとAPIがComposeで起動する。
+- [x] ホストのソース変更がコンテナへ即時反映される。
+- [x] ReactのHMRが動作する。
+- [x] APIのホットリロードが動作する。
+- [x] ホストでTypeScript型チェックとテストを実行できる。
+- [x] WorkerをComposeから直接実行できる。
+- [x] DynamoDB Localとの通信が動作する。
+- [x] コンテナへの個別IDE接続が不要である。
+- [x] npm workspacesと単一の `package-lock.json` が維持される。
+- [x] ホスト・コンテナ間でファイル所有権の問題が起きない。
+- [x] 本番向けビルドがホストの `node_modules` に依存しない。
+
+上のチェックはPhase 1の範囲。[検証記録](spec/phase1-verification.md)に根拠と限界を記載する。Codexでのソース編集は確認したが、VS Codeと拡張機能の画面操作は利用者側の確認が必要。Lambda向け実行環境の完成を示すものではない。
 
 ## 機能と失敗の検証
 

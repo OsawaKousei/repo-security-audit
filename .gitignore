@@ -7,4 +7,6 @@ coverage/
 .env.*
 !.env.example
 
-docs/plan
+.playwright/
+test-results/
+playwright-report/

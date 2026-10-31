@@ -1,190 +1,111 @@
 # ローカル開発環境
 
-本書はローカル開発環境の要件・手順を管理する。実装済み仕様ではなく、コマンド・設定は[リポジトリ構成](repository.md)に従った環境の実装後に利用する。現時点ではnpmスクリプト・Composeサービスは未実装。
+Phase 1のローカルモック構成を実装済み。動作契約は[確定仕様](../spec/local-basic.md)、検証実績は[検証記録](../spec/phase1-verification.md)を参照する。
 
 ## ホストとコンテナの責務
 
-UbuntuホストでVS CodeとCodex拡張機能を実行し、モノレポルートを単一ワークスペースとして開く。
+UbuntuホストでVS CodeとCodexを実行し、モノレポルートを開く。編集、Git、npm依存管理、型チェック、ESLint、単体テスト、Terraform検証はホストで行う。Frontend・API・DynamoDB LocalはComposeで起動し、WorkerはホストからCompose経由で直接実行する。コンテナ内のIDEやCodexは不要。
 
-| 処理 | 実行場所 |
-|---|---|
-| 編集、Codexの変更、Git操作 | ホスト |
-| npm依存管理、TypeScript型チェック、ESLint、単体テスト | ホスト |
-| Terraform検証・Plan・操作 | ホスト |
-| Frontend・API開発サーバー | Composeコンテナ |
-| Workerの監査処理 | 必要時にComposeコンテナで直接実行 |
-| DynamoDB Local | Composeコンテナ |
-| AWSサービス間の統合テスト | AWS dev |
-
-コンテナごとにIDEやCodexを起動しない。VS Code Remote Containersへの個別接続は必須としない。コンテナ内の操作が必要ならホストから `docker compose exec` または `docker compose run` を使う。
-
-## Node.jsと依存関係
-
-- ホストのNode.jsはfnmで切り替え、ルート `.node-version` に定義する。
-- 開発コンテナの公式Node.jsイメージも同一バージョンにする。可能な限りパッチバージョンまで一致させる。
-- AWS Lambda対応LTSを選ぶ。変更要件の `node:24-bookworm-slim` は設定例であり、確定バージョンは[未確定事項](../decisions.md)を解決して固定する。
-- npm workspacesを維持し、ルートに単一の `package-lock.json` を置く。
-- 依存関係はホストでインストールし、ルート `node_modules` をbind mount経由で共有する。
-- 通常構成では `node_modules` 用の名前付きVolumeやコンテナ別インストールを使わない。
-- `node_modules` をGit管理対象から除外する。
-
-依存関係の復元と追加：
+## 初期セットアップ
 
 ```bash
+fnm use --install-if-missing
 npm ci
+npm run setup:local
+docker compose up -d --wait
+```
+
+Node.jsは `.node-version` の **24.22.2** と `node:24.22.2-bookworm-slim` に統一する。`setup:local` は現在のNodeバージョンを検査し、`.env` の `NODE_VERSION`・`LOCAL_UID`・`LOCAL_GID` を更新する。他の設定は保持する。`.env.example` は設定例であり、UID/GIDはホストに合わせる。
+
+ブラウザーで <http://localhost:5173> を開く。APIはloopbackの3000番ポート、Frontendは5173番ポートで公開する。コンテナ内の待受は `0.0.0.0`。認証を省略するPhase 1のため、外部公開用にポート・Proxy設定を変更しない。
+
+## 依存関係とソース共有
+
+npm workspacesとルートの単一 `package-lock.json` を使用する。各workspaceは自身の実行時依存を宣言し、共通の開発ツールはルートに置く。依存追加はホストで行う。
+
+```bash
 npm install <package> -w frontend/app
 npm install <package> -w api/app
 npm install <package> -w workers/security-audit/app
 ```
 
-`npm ci` には既存のルート `package.json` と整合した `package-lock.json` が必要。初期化フェーズでは先にworkspace定義とロックファイルを生成する。
+Frontend・API・Workerはリポジトリ全体を `/workspace` にbind mountし、ホストのルート `node_modules` と `packages/*` を共有する。依存用の名前付きVolumeやコンテナ内インストールは使わない。FrontendはVite HMR、APIは `tsx watch` で反映する。
 
-## ネイティブ依存関係
+ホストとコンテナはNode・CPUアーキテクチャを合わせる。ネイティブモジュールの共有ライブラリ差が問題になる場合は開発イメージを調整し、共有方式を変更するなら理由と手順を記録する。本番向けにはホスト依存を流用しない。
 
-ホストとコンテナのCPUアーキテクチャ・Node.jsを一致させる。ただしLinuxディストリビューションや共有ライブラリの差により、共有 `node_modules` のネイティブモジュールが動作しない場合がある。
+## サービスとデータ初期化
 
-互換性エラーを検出した場合は、開発イメージをホストの環境に近付けるか、例外としてコンテナ側の依存関係を分離する。通常の共有方針を変えるときは理由・手順を本書へ反映する。共有方式がすべてのネイティブモジュールの互換性を保証するとは扱わない。
-
-AWS向け成果物では、ローカルの依存関係を流用せず、対象Lambdaランタイムに適合するクリーン環境で再インストールする。
-
-## Composeサービス
-
-| サービス | 内容 | 起動方式 |
+| サービス | 起動方式 | 内容 |
 |---|---|---|
-| `frontend` | React + Vite | 通常起動 |
-| `api` | Hono開発サーバー | 通常起動 |
-| `worker` | Worker処理本体の直接実行 | `tools` profile、必要時のみ |
-| `dynamodb` | DynamoDB Local | 通常起動 |
+| `frontend` | 通常起動 | React + Vite。APIのhealthcheck成功後に起動 |
+| `api` | 通常起動 | Hono、テーブル初期化、ローカルモックキューの定期処理 |
+| `dynamodb` | 通常起動 | DynamoDB Local 3.3.2、イメージdigest固定、非公開ポート |
+| `worker` | `tools` profile | 同じモック処理本体の直接実行 |
 
-SQSエミュレーターは導入しない。キューはローカルでモックし、実SQS・Lambda連携はAWS devで検証する。認証はAWS devのCognito User Poolを利用する。
+API・CLIはテーブル `security-audit-jobs-local` を存在しなければ作成する。Localの起動待ちには上限付きの再試行を行う。DynamoDBは `-inMemory -sharedDb`。**DynamoDBコンテナの停止・再起動で全データを失う**。APIやFrontendのみの再起動では保持する。DynamoDBだけを再起動した場合は `docker compose restart api` でテーブルを再初期化する。現段階ではTTLを設定しない。
 
-以下は変更要件書の基本構成を現行のディレクトリに合わせた例。最終実装ではNode.jsの固定タグ、環境変数、各アプリの開発サーバー・スクリプトを整える。
+SQSエミュレーターは使わない。DynamoDBに保存された実行スロットを1秒ごとに確認し、待機ジョブをAPIプロセス内のモックWorkerへ渡す。API再起動時も待機ジョブを取得する。開始済みジョブは再実行せず、180秒の期限切れを検出すると失敗にする。
 
-```yaml
-services:
-  frontend:
-    image: node:24-bookworm-slim
-    working_dir: /workspace
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    volumes:
-      - ./:/workspace
-    command: npm run dev -w frontend/app -- --host 0.0.0.0
-    ports:
-      - "127.0.0.1:5173:5173"
-    init: true
+## 環境設定
 
-  api:
-    image: node:24-bookworm-slim
-    working_dir: /workspace
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    volumes:
-      - ./:/workspace
-    command: npm run dev -w api/app
-    environment:
-      NODE_ENV: development
-      DYNAMODB_ENDPOINT: http://dynamodb:8000
-      AWS_REGION: ap-northeast-1
-      AWS_ACCESS_KEY_ID: local
-      AWS_SECRET_ACCESS_KEY: local
-    ports:
-      - "127.0.0.1:3000:3000"
-    depends_on:
-      - dynamodb
-    init: true
+Composeは以下を明示設定する。シェルのAWS認証情報や `.env` の秘密値はコンテナへ一括転送しない。
 
-  worker:
-    image: node:24-bookworm-slim
-    working_dir: /workspace
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    volumes:
-      - ./:/workspace
-    profiles: [tools]
-    environment:
-      NODE_ENV: development
-      DYNAMODB_ENDPOINT: http://dynamodb:8000
-      AWS_REGION: ap-northeast-1
-      AWS_ACCESS_KEY_ID: local
-      AWS_SECRET_ACCESS_KEY: local
-    command: node --version
-    init: true
+| 変数 | Phase 1の値・用途 |
+|---|---|
+| `APP_ENV` | `local` |
+| `NODE_ENV` | `development` |
+| `LOCAL_AUTH_BYPASS` | `true`。ローカルエントリーポイントだけが受け付ける |
+| `AUDIT_MODE` | `mock` のみ。実監査モードは未実装 |
+| `MOCK_OUTCOME` | `success`（既定）または `failure` |
+| `DYNAMODB_ENDPOINT` | `http://dynamodb:8000` |
+| `DYNAMODB_TABLE` | `security-audit-jobs-local` |
 
-  dynamodb:
-    image: amazon/dynamodb-local:latest
-    command:
-      - "-jar"
-      - "DynamoDBLocal.jar"
-      - "-sharedDb"
-      - "-inMemory"
+DynamoDB Local用のダミー認証情報はSDKクライアントで固定し、AWSの資格情報を探索しない。Cognito・GitHub・OpenAIのキーは不要。実認証・実API用の設定は後続Phaseで定義する。
+
+失敗画面の確認：
+
+```bash
+MOCK_OUTCOME=failure docker compose up -d api
+# 新しい監査を画面から開始し、FAILED / MOCK_FAILURE を確認する。
+MOCK_OUTCOME=success docker compose up -d api
 ```
-
-Frontend・API・Workerにルート全体を `/workspace` としてmountする。APIはコンテナ内の `0.0.0.0:3000` で待ち受ける。ホスト公開ポートはloopbackに限定する。ホストのUID/GIDが1000以外なら `LOCAL_UID` / `LOCAL_GID` をホストに合わせ、ファイル所有権の問題を避ける。
-
-例のAWS認証情報 `local` はDynamoDB Local用のダミー値。Workerの実API接続に必要な秘密情報はGit管理外の環境変数ファイルなどで注入し、実キーを設定例へ書かない。例にはCognito設定、秘密情報注入、テーブル作成処理は含めていない。
-
-例のDynamoDB Localは `-inMemory` で動く。停止後も監査履歴が残る構成ではない。永続化・初期化方法は[未確定事項](../decisions.md)で決める。
-
-## FrontendとAPIの通信
-
-Reactは環境に依存しない相対パス `/api/...` を利用する。ViteのProxy設定例：
-
-```typescript
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "http://api:3000",
-        changeOrigin: true,
-      },
-    },
-  },
-});
-```
-
-AWSではCloudFrontが同じ `/api/*` をHono Lambdaへ転送する。
-
-FrontendはVite HMR、APIは `tsx watch` などを利用する。bind mountしたホストの変更が即時反映され、両方のホットリロードが動作することを必須とする。
 
 ## 日常コマンド
 
-セットアップ後、ホストから実行する。
-
 ```bash
-npm ci
-docker compose up -d
 docker compose logs -f frontend api
+npm run typecheck
+npm run lint
+npm test
 ```
 
-型チェックもホストで実行する。
+`npm run typecheck -w <workspace>` でも個別に検査できる。Reactは相対パス `/api/...` のみを使用し、Vite Proxyは `http://api:3000` へ転送する。CORSは開放しない。
 
-```bash
-npm run typecheck -w frontend/app
-npm run typecheck -w api/app
-npm run typecheck -w workers/security-audit/app
-```
-
-WorkerはSQSを介さず、Composeから直接実行する。
+Workerの直接実行：
 
 ```bash
 docker compose run --rm worker \
   npm run audit:local -w workers/security-audit/app -- <job-id>
 ```
 
-`audit:local` から共通の `runAudit(jobId, ownerSub)` を呼ぶ。所有者の解決方法、AIモック切り替え、秘密情報の設定名は[未確定事項](../decisions.md)で定義する。
+所有者はPhase 1の固定 `local-user`。APIも同じモック処理を実行するため、競合・完了済みジョブは処理を重複させない。不存在のIDは非ゼロ終了する。成功時は保存された状態をJSON表示する。
 
-停止：
+## 統合・ブラウザー・ビルド検証
+
+```bash
+docker compose run --rm worker npm run test:integration
+npx playwright install chromium
+npm run test:e2e
+npm run build
+npm run build:clean
+```
+
+統合テストはUUIDを含む専用Localテーブルを作成・削除する。E2Eは起動済みComposeを使用し、ローカルユーザーの監査枠を1回消費する。ブラウザーのシステム依存が必要な場合はPlaywrightの案内に従う。
+
+`build:clean` はホストの `node_modules`・既存 `dist`・秘密情報をコピーせず、一時ディレクトリで `npm ci` とビルドを実行する。出力は検証後に削除する。APIの `dist/lambda.js` は認証未実装のため拒否するスタブであり、AWSデプロイ成果物の完成を意味しない。npm監査用ランタイム・SQS・Lambdaの実統合は後続Phaseで検証する。
 
 ```bash
 docker compose down
 ```
 
-通常の停止でホストのソースと `node_modules` は削除されない。DynamoDB Localのインメモリデータとは扱いが異なる。
-
-## 実認証・実APIの使い分け
-
-Frontend開発・単体テストではAIを呼ばないモックモードを使う。Local Auditは実GitHub・npm Registry・OpenAI接続を検証できるモードとする。まずAIモックで監査を検証してから実AIを接続する。
-
-Cognito導入後はローカルでも実認証を基本とし、dev User Poolにlocalhost用Callback URLを登録する。初期段階のみ許される認証例外とAWS操作の確認は[開発ワークフロー](workflow.md)を参照する。
+通常の停止でホストのソースと `node_modules` は削除されない。

@@ -1,10 +1,24 @@
+x-node: &node
+  image: "node:${NODE_VERSION:?Run npm run setup:local}-bookworm-slim"
+  working_dir: /workspace
+  user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+  volumes:
+    - ./:/workspace
+  init: true
+
+x-local-env: &local-env
+  NODE_ENV: development
+  APP_ENV: local
+  LOCAL_AUTH_BYPASS: "true"
+  AUDIT_MODE: mock
+  MOCK_OUTCOME: "${MOCK_OUTCOME:-success}"
+  DYNAMODB_ENDPOINT: http://dynamodb:8000
+  DYNAMODB_TABLE: security-audit-jobs-local
+  npm_config_cache: /tmp/npm-cache
+
 services:
   frontend:
-    image: "node:${NODE_VERSION:?Set NODE_VERSION in .env}-bookworm-slim"
-    working_dir: /workspace
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    volumes:
-      - ./:/workspace
+    <<: *node
     environment:
       NODE_ENV: development
       npm_config_cache: /tmp/npm-cache
@@ -12,19 +26,32 @@ services:
     ports:
       - "127.0.0.1:5173:5173"
     depends_on:
-      - api
-    init: true
+      api:
+        condition: service_healthy
 
   api:
-    image: "node:${NODE_VERSION:?Set NODE_VERSION in .env}-bookworm-slim"
-    working_dir: /workspace
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    volumes:
-      - ./:/workspace
-    environment:
-      NODE_ENV: development
-      npm_config_cache: /tmp/npm-cache
+    <<: *node
+    environment: *local-env
     command: npm run dev -w api/app
     ports:
       - "127.0.0.1:3000:3000"
-    init: true
+    depends_on:
+      - dynamodb
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 5s
+
+  worker:
+    <<: *node
+    profiles: [tools]
+    environment: *local-env
+    depends_on:
+      - dynamodb
+    command: npm run audit:local -w workers/security-audit/app --
+
+  dynamodb:
+    image: amazon/dynamodb-local@sha256:6ada631ec7aa5fc83446855eb17233e3dad184fec47477e8140c6c569cfe0c86
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory", "-disableTelemetry"]

@@ -14,6 +14,8 @@
 
 目的：Frontend・API・DynamoDBの基本フローを確認する。
 
+2026-11-01：Phase 1の実装とローカル動作検証を実施済み。[確定仕様](../spec/local-basic.md)と[検証記録](../spec/phase1-verification.md)に契約・実績・未確認事項を記録した。VS Codeの目視操作と後続PhaseのAWS検証は別管理とする。
+
 - [現行のディレクトリ構成](repository.md)を維持し、npm workspacesと単一ロックファイルを初期化する。
 - `.node-version`、依存関係共有、Compose、ホストUID/GIDを整える。
 - React + Vite、Hono、DynamoDB Localを実装・起動する。

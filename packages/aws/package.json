@@ -1,0 +1,16 @@
+{
+  "name": "@repo-sentinel/aws",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@repo-sentinel/core": "0.0.0",
+    "@aws-sdk/client-dynamodb": "^3.900.0",
+    "@aws-sdk/lib-dynamodb": "^3.900.0"
+  }
+}

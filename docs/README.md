@@ -6,8 +6,8 @@
 
 | 配置先 | 記載する内容 | 現在の状態 |
 |---|---|---|
-| [実装計画](plan/implementation-plan.md) | 未実装の機能要件・関連文書への案内 | Frontend・API・データ・Worker・AIを1文書へ統合 |
-| [確定仕様](spec/README.md) | 実装・検証済みの実際の動作・契約・制約 | アプリ機能の確定仕様はまだない |
+| [実装計画](plan/implementation-plan.md) | 未実装の機能要件・関連文書への案内 | Phase 1反映済み範囲と後続Phaseの要件 |
+| [確定仕様](spec/README.md) | 実装・検証済みの実際の動作・契約・制約 | ローカル基本仕様・Phase 1検証記録を追加 |
 | [未確定事項](decisions.md) | 計画を実装する前に決める値・方式 | IDごとに管理 |
 
 実装計画の採用方針やサンプルを、実装済みの仕様として扱わない。実装・検証が完了した範囲を `docs/spec/` に記載し、計画にも反映済み範囲を記録する。
@@ -33,4 +33,4 @@
 
 ユーザーの明示的な変更指示を優先する。リポジトリ構成は現行の `frontend/app`・`api/app`・`workers/security-audit/app` と `docker-compose.yaml` を正とする。
 
-`docs/plan/` の実装計画はGit管理対象とする。2026-11-01時点のコードは空のDockerfileとComposeなどの雛形で、npm設定・アプリ・Terraform・テストは未実装。コマンド・設定例は構築後の目標を示す。
+`docs/plan/` の実装計画はGit管理対象とする。2026-11-01にPhase 1のローカル基本実装を追加した。起動は[ルートREADME](../README.md)、実際の契約と検証根拠は[確定仕様](spec/README.md)を参照する。実GitHub・npm監査・AI、Cognito、Terraform、AWS統合は後続Phaseで実装する。

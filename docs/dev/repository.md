@@ -2,7 +2,7 @@
 
 ## 現在の状態
 
-2026-11-01時点では次の雛形が存在する。
+2026-11-01にPhase 1のローカル基本実装を追加した。トップレベルの配置は維持している。
 
 ```text
 repo-security-audit/
@@ -23,7 +23,7 @@ repo-security-audit/
 └── docs/
 ```
 
-Dockerfileと `docker-compose.yaml` は空であり、アプリケーション、npm workspaces、開発スクリプトは未実装。今回の文書整理では雛形の移動や実装は行わない。
+`docker-compose.yaml`、3アプリ・2共通パッケージのnpm workspaces、開発・検証スクリプトを実装済み。開発では公式イメージを利用し、既存の空Dockerfileは使用しない。実行手順は[ローカル開発](local-development.md)、契約は[確定仕様](../spec/local-basic.md)を参照する。
 
 ## 現行構成を維持する実装方針
 
@@ -91,7 +91,7 @@ repo-security-audit/
 └── README.md
 ```
 
-このツリーは既存の配置を維持した実装目標であり、全ファイルの作成済みを意味しない。`src/` や `infra/terraform/` などの詳細は今後作成する。ルートREADMEは将来のセットアップ入口とし、現在の仕様入口は [docs/README.md](../README.md) とする。
+このツリーは全Phaseの配置目標であり、全ファイルの作成済みを意味しない。Phase 1では `workers/security-audit/app/src/audit.ts`・`mock.ts`・`local.ts`、`packages/core/src/index.ts`、`packages/aws/src/dynamodb.ts`・`local-config.ts`、`tests/`、`scripts/` を実装した。実GitHub・npm監査・AI・SQS・Worker Lambda・Terraformのファイルは後続Phase。セットアップ入口は[ルートREADME](../../README.md)、仕様入口は[docs/README.md](../README.md)。
 
 ## Workspaceと配置ルール
 
