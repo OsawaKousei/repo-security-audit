@@ -91,7 +91,7 @@ repo-security-audit/
 └── README.md
 ```
 
-このツリーは全Phaseの配置目標であり、全ファイルの作成済みを意味しない。Phase 1では `workers/security-audit/app/src/audit.ts`・`mock.ts`・`local.ts`、`packages/core/src/index.ts`、`packages/aws/src/dynamodb.ts`・`local-config.ts`、`tests/`、`scripts/` を実装した。Phase 2ではWorkerに `github.ts`・`npm-audit.ts`・`ai-report.ts`・`ai-budget.ts`・`http.ts`・`limits.ts` を追加した。Terraformは `environments/dev` と `modules/{auth,frontend,database,queue,api,worker}` の定義を作成し、init前まで準備した。既存共有Stateを使うためbootstrapは作成しない。SQS・Worker Lambdaのアプリ実装とAWS統合は後続Phase。セットアップ入口は[ルートREADME](../../README.md)、仕様入口は[docs/README.md](../README.md)。
+このツリーは全Phaseの配置目標であり、全ファイルの作成済みを意味しない。Phase 1では `workers/security-audit/app/src/audit.ts`・`mock.ts`・`local.ts`、`packages/core/src/index.ts`、`packages/aws/src/dynamodb.ts`・`local-config.ts`、`tests/`、`scripts/` を実装した。Phase 2ではWorkerに `github.ts`・`npm-audit.ts`・`ai-report.ts`・`ai-budget.ts`・`http.ts`・`limits.ts` を追加した。Terraformは `environments/dev` と `modules/{auth,frontend,database,queue,api,worker}` の定義を作成し、固定devドメイン構成でvalidate・テスト・Planまで確認した。既存共有Stateを使うためbootstrapは作成しない。SQS・Worker Lambdaのアプリ実装とAWS統合は後続Phase。セットアップ入口は[ルートREADME](../../README.md)、仕様入口は[docs/README.md](../README.md)。
 
 ## Workspaceと配置ルール
 

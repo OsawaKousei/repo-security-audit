@@ -12,7 +12,7 @@ variable "aws_profile" {
 }
 
 variable "aws_account_id" {
-  description = "Expected AWS account; both providers refuse other accounts."
+  description = "Expected AWS account; the provider refuses other accounts."
   type        = string
 
   validation {
@@ -44,17 +44,17 @@ variable "environment" {
 }
 
 variable "public_domain" {
-  description = "Single-label project host covered by the existing *.prj.kupac.co.jp certificate."
+  description = "Fixed dev host shared by CloudFront, Route 53, and Cognito. The production host is not accepted."
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?\\.prj\\.kupac\\.co\\.jp$", var.public_domain))
-    error_message = "public_domain must be a single host name under prj.kupac.co.jp."
+    condition     = var.public_domain == "${var.project_name}-${var.environment}.prj.kupac.co.jp"
+    error_message = "This dev root requires <project_name>-dev.prj.kupac.co.jp; never use the production host or a CloudFront-generated domain."
   }
 }
 
 variable "acm_certificate_arn" {
-  description = "Existing issued us-east-1 ACM certificate; this project will not manage its validation records."
+  description = "Existing us-east-1 ACM certificate covering the dev host; the certificate and validation records are not managed here."
   type        = string
 
   validation {
@@ -64,7 +64,7 @@ variable "acm_certificate_arn" {
 }
 
 variable "route53_zone_id" {
-  description = "Existing public kupac.co.jp zone verified for the project host."
+  description = "Existing public kupac.co.jp hosted zone containing the dev host."
   type        = string
 
   validation {

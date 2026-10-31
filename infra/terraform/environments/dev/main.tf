@@ -1,16 +1,14 @@
 locals {
-  name = "${var.project_name}-${var.environment}"
+  name         = "${var.project_name}-${var.environment}"
+  auth_origins = ["https://${var.public_domain}", "http://localhost:5173"]
 }
 
 module "auth" {
   source        = "../../modules/auth"
   name          = local.name
   domain_prefix = "${local.name}-${var.aws_account_id}"
-  callback_urls = [
-    "https://${var.public_domain}/auth/callback",
-    "http://localhost:5173/auth/callback",
-  ]
-  logout_urls = ["https://${var.public_domain}/", "http://localhost:5173/"]
+  callback_urls = [for origin in local.auth_origins : "${origin}/auth/callback"]
+  logout_urls   = [for origin in local.auth_origins : "${origin}/"]
 }
 
 module "database" {

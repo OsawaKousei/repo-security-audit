@@ -10,7 +10,7 @@
 | [Phase 1検証記録](phase1-verification.md) | 実行した検証、結果、未確認事項 |
 | [ローカルWorker仕様](local-worker.md) | Phase 2のGitHub・npm・AI・予算・状態契約 |
 | [Phase 2検証記録](phase2-verification.md) | 実API・自動テスト・画面確認の結果 |
-| [Terraform準備の検証記録](terraform-preparation.md) | dev向け定義の静的検査。init・AWS配置は未実施 |
+| [Terraform準備の検証記録](terraform-preparation.md) | dev向け定義の静的検査・validate・モックテスト・Plan。AWS配置は未実施 |
 
 実認証・SQS・AWS統合は未実装。以前の5分野の計画は引き続き実装計画で管理する。
 

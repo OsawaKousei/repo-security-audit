@@ -1,6 +1,6 @@
 # Terraformの準備状況
 
-2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。**terraform initの直前で停止している。AWSへ実施した変更は、利用者が承認した共有StateバケットのVersioning有効化のみ。アプリケーション用リソースは未作成。**
+2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。当初はinit前で停止し、その後、利用者がinit・旧構成のPlanを実行した。現在は利用者の指示でdev専用ドメイン `repo-sentinel-dev.prj.kupac.co.jp` に設定し、validate・モックテスト・Planまで確認済み。**applyは未実行。アプリケーション用リソースは未作成。**
 
 | 項目 | 採用した設定 |
 |---|---|
@@ -10,9 +10,10 @@
 | Stateバケット | `terraform-state-bucket-103492189525-ap-northeast-1-an`。参照元の実設定から確認 |
 | 新規Stateキー | `kupac/repo-sentinel/dev/terraform.tfstate` |
 | Stateロック | S3 native lock。DynamoDBによるStateロックは使用しない |
-| 公開ホスト | `repo-sentinel.prj.kupac.co.jp`。package.jsonのプロジェクト名から決定 |
-| Route 53 | 既存の公開 `kupac.co.jp.` ゾーン `Z06893261CC94H6AKTJGK` |
-| 既存証明書 | 利用者指定のus-east-1 ACM証明書。作成・import・CNAME変更は行わない |
+| dev公開ホスト | `repo-sentinel-dev.prj.kupac.co.jp`。`frontend_url` 出力も同じURL |
+| Route 53 | 既存公開 `kupac.co.jp.` ゾーン `Z06893261CC94H6AKTJGK` にdev用A/AAAA Aliasを作成 |
+| 証明書 | 指定済みus-east-1 ACM証明書 `7b6cdfdb-5b63-4572-936c-f7362c471713` を参照。作成・import・検証CNAME変更は行わない |
+| 本番URL | `repo-sentinel.prj.kupac.co.jp` を予約。将来の別環境で設定 |
 | Terraform | `>= 1.10.0, < 2.0.0`。ローカルの1.17.0でfmtを確認 |
 | AWS Provider | 参照元のlockファイルと同じ6.69.1に固定 |
 
@@ -20,14 +21,15 @@
 
 ## AWSの読み取り確認結果（2026-11-01）
 
-SSO復旧後、指定profileで以下を確認した。認証情報・Stateオブジェクトの内容は取得・保存していない。
+SSO復旧後、指定profileで以下を確認した。dev専用ドメインへの変更時に、証明書のISSUED・SANとdev用DNSレコード・CloudFront Aliasの未使用を再確認した。認証情報・State本文はログへ出力していない。
 
 | 対象 | 結果 |
 |---|---|
 | STS Account | `103492189525` と一致 |
 | ACM | 指定ARNが `ISSUED`、SANは `*.prj.kupac.co.jp` |
 | 公開ゾーン | `kupac.co.jp.` / `Z06893261CC94H6AKTJGK` |
-| DNS | 同ゾーンに `prj.kupac.co.jp.` の委譲レコードと `repo-sentinel.prj.kupac.co.jp.` の既存レコードはない |
+| DNS | 初期確認時に `prj.kupac.co.jp.` の委譲なし。dev変更時に `repo-sentinel-dev.prj.kupac.co.jp.` の既存レコードなし |
+| CloudFront Alias | devホストを使用する既存Distributionなし |
 | Stateキー | `kupac/repo-sentinel/dev/` 配下にオブジェクトなし |
 | S3 Block Public Access | 4項目ともtrue |
 | S3 default encryption | AES256 |
@@ -55,7 +57,7 @@ State本文、既存のStateオブジェクト、IAM、Bucket Policy、Lifecycle
 |---|---|
 | `environments/dev` | Backend、Provider、module接続、出力、監視、任意のAWS予算通知 |
 | `modules/auth` | Cognito User Pool、公開App Client、Managed Login v2、既定branding |
-| `modules/frontend` | 非公開S3、S3 OAC、CloudFront、既存証明書参照、Route 53 A/AAAA |
+| `modules/frontend` | 非公開S3、S3 OAC、CloudFrontのdev専用Alias、既存ACM参照、Route 53 A/AAAA |
 | `modules/database` | PK/SKのDynamoDB PAY_PER_REQUEST、暗号化、PITR、削除保護 |
 | `modules/queue` | 暗号化SQS StandardとDLQ、Visibility 1,080秒、maxReceiveCount 2 |
 | `modules/api` | 条件付きAPI Lambda、Function URL AWS_IAM、限定IAM、ログ |
@@ -65,7 +67,7 @@ State本文、既存のStateオブジェクト、IAM、Bucket Policy、Lifecycle
 
 `enable_runtime=true` はPhase 4の準備後に使う。API/Workerの読み取り可能なZIP、npm Layer ARN、許可Cognito sub、AWS予算額とメールの設定を必須とする。APIはNode.js 24 / timeout 15秒 / concurrency 2、WorkerはNode.js 24 / timeout 180秒 / concurrency 2、SQS mappingはbatch 1 / maximum concurrency 2。アプリ側の同時監査1件・日次回数・冪等性は別途実装・検証する。
 
-CognitoはESSENTIALS、自己登録禁止、TOTP MFA必須、OAuth Code Flow、client secretなし、外部IdPなし。Callbackは公開ホストと `http://localhost:5173/auth/callback`。PKCE・JWT検証・許可sub認可は後続のアプリ実装で完成させる。
+CognitoはESSENTIALS、自己登録禁止、TOTP MFA必須、OAuth Code Flow、client secretなし、外部IdPなし。初回から `https://repo-sentinel-dev.prj.kupac.co.jp/auth/callback` と `http://localhost:5173/auth/callback` を登録する。Logoutも同じ2オリジンを登録し、default redirectはdevのHTTPS URLとする。PKCE・JWT検証・許可sub認可は後続のアプリ実装で完成させる。
 
 初期ユーザーの作成とパスワード設定は管理操作で行い、パスワードをTerraformへ渡さない。ユーザー作成後のsubを `allowed_user_sub` に設定する。OpenAIキーは `aws_secretsmanager_secret` の空コンテナだけを定義し、値は明示確認を伴う別のSecrets Manager操作で注入する。`aws_secretsmanager_secret_version` やキー値のTerraform変数は作成しない。
 
@@ -75,7 +77,7 @@ CloudWatchはDLQ件数1以上・Queue最古600秒以上を定義し、runtime有
 
 ## Versioning有効化の影響評価（2026-11-01）
 
-以下は有効化前に実施した評価。設定・オブジェクトと世代のメタデータだけを読み取り、State本文は取得していない。有効化の実績は前節に記録する。Terraform initは未実行。
+以下は有効化前に実施した評価。設定・オブジェクトと世代のメタデータだけを読み取り、State本文は取得していない。有効化の実績は前節に記録する。当該評価時点ではTerraform initは未実行だった。
 
 - 現行Stateは7件、合計151,982バイト（約148KiB）、全件STANDARD。すべてnull versionで、過去世代とdelete markerは0件。
 - 対象は `kupac/apt-registry`、`prelis/apt-repo`、`prelis/ms-store`、`prelis/web-frontend`、`webpage/kupacllc-homepage`、`webpage/prelis-lp`、`webpage/web2md-lp` のState。
@@ -102,21 +104,39 @@ CloudWatchはDLQ件数1以上・Queue最古600秒以上を定義し、runtime有
 
 ## 検証と現在の境界
 
-実行済みは `terraform fmt -check -recursive infra/terraform`、HCLパーサーによる12ファイル・7ディレクトリの変数/module入出力参照検査、CloudFront Functionの6テスト、既存テストを含む全86テスト、型チェック・ESLint。ProviderスキーマによるvalidateとAWS Planは未実行であり、初回init後に必ず確認する。
+dev専用ドメイン構成で `terraform fmt -check -recursive infra/terraform`、`terraform validate`、モックProviderによる `terraform test` の4ケースが成功。固定dev URLと初回からのCallback登録、本番ドメイン・CloudFront標準ドメイン・prod環境の指定拒否を検証した。
 
-`.terraform`、本プロジェクト用 `.terraform.lock.hcl` は未生成。参照元の初期化済みディレクトリやStateを流用していない。ロックファイルは初回initで作成し、内容確認後にGit管理する。
+実AWSに対するPlanを再生成し、**26件追加・変更0件・削除0件**を確認した。PlanのJSONでもdev用A/AAAA・CloudFront Alias・指定証明書・TLSポリシー・CognitoのCallback／Logout／default redirectの整合を確認した。既存Stateバケット・本番DNS・証明書の作成や更新は含まれない。アプリケーション・CloudFront Functionsのコードは今回変更していない。
+
+`.terraform` と `.terraform.lock.hcl` は利用者のinitで生成済み。AWS Providerは6.69.1で固定している。AWSへのapply・実配信・実Cognitoログインは未検証。初期準備時のHCL静的検査、npmの型チェック・ESLint・全86テストの記録は [検証記録](../../docs/spec/terraform-preparation.md) を参照する。
+
+## ドメインと認証URLの管理
+
+`public_domain` は `<project_name>-dev.prj.kupac.co.jp` のみを許可する。CloudFrontのAlias、Route 53、Cognito Callback／Logout、Frontend出力に同じ入力値を使う。`repo-sentinel.prj.kupac.co.jp` は将来のprod向けに予約し、devの入力では拒否する。DNSは `allow_overwrite=false` として既存レコードの上書きを避ける。
+
+指定済みの `*.prj.kupac.co.jp` 証明書でdevホストをカバーし、CloudFrontは `sni-only`・`TLSv1.2_2021` を使用する。ACMの新規発行や検証レコード変更は行わない。証明書ARNを参照するだけなので、未使用だったus-east-1 Providerは不要。
+
+固定URLを初回からCognitoへ渡せるため、生成されたCloudFront URLの手動転記やCallback登録のための再applyは不要。`cognito_frontend_domain` 変数と2段階登録手順は削除した。APIは従来のCognito環境変数方式を維持し、SSMによる認証設定取得は追加していない。
 
 ## 次の手順
 
-ここでは実行していない。init以降は利用者の次の指示を受けて行う。
+**本番URLやCloudFront標準URLを前提とした古いPlanを適用しない。** `environments/dev/dev.tfplan` は固定devドメイン構成で再生成済み。設定変更時は必ずPlanを作り直す。
 
 ```bash
-terraform -chdir=infra/terraform/environments/dev init -backend-config=backend.hcl
 terraform -chdir=infra/terraform/environments/dev validate
+terraform -chdir=infra/terraform/environments/dev test
 terraform -chdir=infra/terraform/environments/dev plan -out=dev.tfplan
 ```
 
-planで新規リソースと費用を確認し、既存リソースの更新・削除・importが混ざらないことを確認する。`terraform apply` は明示的な承認後だけ実行する。
+Planで26件追加・変更／削除0件とdev用URLを確認し、明示承認後にapplyする。ここでは実行していない。
+
+```bash
+terraform -chdir=infra/terraform/environments/dev apply dev.tfplan
+terraform -chdir=infra/terraform/environments/dev output frontend_url
+terraform -chdir=infra/terraform/environments/dev output cognito_callback_urls
+```
+
+prodは別Terraformルート・別State・別リソースで構築する。既存devのURLやStateを本番へ流用しない。
 
 Phase 3でCognitoを構築し、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。Phase 4のruntime有効化前には以下を完了する。
 

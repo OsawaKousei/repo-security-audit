@@ -6,11 +6,11 @@ AWSリソースはTerraformで管理する。ローカル開発環境の変更�
 
 ## 現在の準備状況
 
-2026-11-01：利用者指定により、参照元と同じ `kupacllc`・東京リージョン・既存Stateバケットを使用する。公開ホストは `repo-sentinel.prj.kupac.co.jp`、証明書は指定されたus-east-1の既存ACMを使用し、本プロジェクトで再発行しない。
+2026-11-01：利用者指定により、参照元と同じ `kupacllc`・東京リージョン・既存Stateバケットを使用する。devは `repo-sentinel-dev.prj.kupac.co.jp` を使い、既存DNSゾーンにA/AAAA Aliasを作成する。指定済みのus-east-1ワイルドカードACM証明書を参照し、TLSポリシーは `TLSv1.2_2021` とする。`repo-sentinel.prj.kupac.co.jp` は将来の本番環境向けに予約する。
 
-dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。AWS上のアプリ用リソース作成・init・Providerによるvalidate・planは未実施。
+dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。その後、利用者がinitを実行し、固定devドメイン構成でvalidate・モックテスト・Planを確認した。現行Planは26件追加・変更／削除0件。AWS上のアプリ用リソース作成は未実施。
 
-初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。具体的な切替条件・確認結果は上記READMEを参照する。
+初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。CognitoのCallback／Logoutには初回からdev用HTTPS URLとlocalhostを登録し、生成URLの転記は行わない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。具体的な切替条件・確認結果は上記READMEを参照する。
 
 ## 管理対象
 
@@ -41,7 +41,7 @@ dev/prodを論理的に分離する。
 - Lambda関数。
 - OpenAI APIキー。
 
-PoC初期はdevのみでもよい。prodはdevで一連の動作を確認してから作る。ローカル認証はdev User Poolを利用し、localhost Callback URLを登録する。
+devは `repo-sentinel-dev.prj.kupac.co.jp`、prodは `repo-sentinel.prj.kupac.co.jp` を使用する。dev用Terraformは本番ドメインの入力を拒否する。URLを分けても認証・認可は引き続き必要。PoC初期はdevのみでもよい。prodはdevで一連の動作を確認してから作る。ローカル認証はdev User Poolを利用し、localhost Callback URLを登録する。
 
 ## Terraform State
 
