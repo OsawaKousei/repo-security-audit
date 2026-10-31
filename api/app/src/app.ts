@@ -9,8 +9,10 @@ type Options = {
   // Authentication is denied by default. Only the local server supplies this callback.
   authorize?: (request: Request) => string | undefined
   enqueue?: (jobId: string, ownerSub: string) => Promise<void>
+  mode?: 'mock' | 'audit'
+  aiMode?: 'mock' | 'openai'
 }
-export function createApp({ store, authorize, enqueue = async () => {} }: Options) {
+export function createApp({ store, authorize, enqueue = async () => {}, mode = 'mock', aiMode = 'mock' }: Options) {
   const app = new Hono<{ Variables: { ownerSub: string } }>()
   app.use('/api/*', async (c, next) => {
     c.header('Cache-Control', 'no-store')
@@ -20,7 +22,7 @@ export function createApp({ store, authorize, enqueue = async () => {} }: Option
     await next()
   })
   app.use('/api/*', bodyLimit({ maxSize: 4096, onError: (c) => c.json({ error: { code: 'BODY_TOO_LARGE', message: 'リクエストが大きすぎます。' } }, 413) }))
-  app.get('/api/health', (c) => c.json({ status: 'ok', service: 'repo-sentinel-api', mode: 'mock' }))
+  app.get('/api/health', (c) => c.json({ status: 'ok', service: 'repo-sentinel-api', mode, aiMode }))
   app.post('/api/audits', async (c) => {
     if (!/^application\/json(?:\s*;|$)/i.test(c.req.header('Content-Type') ?? '')) {
       throw new AuditError('INVALID_INPUT', 'JSON形式で送信してください。', 400)
@@ -31,7 +33,7 @@ export function createApp({ store, authorize, enqueue = async () => {} }: Option
     const ownerSub = c.get('ownerSub')
     await store.create(ownerSub, {
       jobId, repository: repositoryFromUrl(input.data.repositoryUrl), status: 'PENDING',
-      createdAt: new Date().toISOString(), attemptCount: 0, mode: 'mock',
+      createdAt: new Date().toISOString(), attemptCount: 0, mode, aiMode,
     })
     try { await enqueue(jobId, ownerSub) }
     catch {

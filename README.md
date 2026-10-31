@@ -1,6 +1,6 @@
 # Repo Sentinel
 
-公開GitHubリポジトリのnpm依存関係を監査する個人用PoCです。現在は **Phase 1：ローカルの基本実装** に対応し、監査開始からモックレポート表示まで動作します。GitHub・npm Registry・OpenAIへの実接続とCognito認証は後続Phaseです。
+公開GitHubリポジトリのnpm依存関係を監査する個人用PoCです。現在は **Phase 2：Workerのローカル実装** まで対応しています。実GitHubから固定SHAの依存定義を取得し、npm auditと実OpenAIレポート生成をComposeから直接実行できます。Cognito・SQS・AWS統合は後続Phaseです。
 
 ## ローカル起動
 
@@ -17,6 +17,22 @@ docker compose up -d --wait
 
 `setup:local` は `.node-version` とホストUID/GIDをGit管理外の `.env` に反映します。公開ポートはloopback限定です。DynamoDB Localはインメモリのため、停止・再起動で履歴と回数カウンターが消えます。
 
+## 実監査を直接実行
+
+`.env` に `OPENAI_API_KEY` を設定し、専用OpenAI Projectの月額$10 Hard spend limitを有効にした後、`OPENAI_HARD_LIMIT_CONFIRMED=true` を設定します。鍵はWorkerだけへ渡します。
+
+まずAIモックで確認します。
+
+```bash
+docker compose run --rm -e AUDIT_MODE=audit -e AI_MODE=mock worker \
+  npm run audit:local -w workers/security-audit/app -- \
+  --repository https://github.com/axios/axios
+```
+
+実AIで実行する場合は `-e AI_MODE=openai` に変更します。結果はCLIと画面の監査履歴から確認できます。lockfileVersion 2/3のルートnpmプロジェクトに対応し、workspaces・git/file/URL依存は未対応です。
+
+日次5回・同時1件に加え、実AIは `.local/ai-usage/` に永続的な予算予約を保存します。この台帳は削除しないでください。詳しくは[ローカル開発](docs/dev/local-development.md)を参照してください。
+
 ## 検証
 
 ```bash
@@ -31,4 +47,4 @@ npm run build:clean
 
 ブラウザーテストは起動済みComposeを使用し、ローカルユーザーの監査枠を1回消費します。統合テストは専用テーブルを自動作成・削除します。`build:clean` はソースとマニフェストだけを一時ディレクトリへコピーし、独立した `npm ci` とビルドを実行して削除します。Lambdaの実行環境検証は後続Phaseです。
 
-停止は `docker compose down`。詳細は[ローカル開発](docs/dev/local-development.md)、実装契約は[Phase 1仕様](docs/spec/local-basic.md)、全体計画は[実装計画](docs/plan/implementation-plan.md)を参照してください。
+停止は `docker compose down`。詳細は[ローカル開発](docs/dev/local-development.md)、実装契約は[Worker仕様](docs/spec/local-worker.md)と[Phase 1仕様](docs/spec/local-basic.md)、全体計画は[実装計画](docs/plan/implementation-plan.md)を参照してください。

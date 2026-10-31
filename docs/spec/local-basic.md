@@ -2,6 +2,8 @@
 
 対象はlocalhostでのFrontend → Hono API → DynamoDB Local → Mock Worker → レポート表示。2026-11-01に実装・検証。確認根拠は[検証記録](phase1-verification.md)。本書の契約はPhase 1に限定する。実認証・GitHub取得・npm audit・実AI・AWSキューは未実装。
 
+Phase 2による追加・変更は[Worker仕様](local-worker.md)を優先する。本書はPhase 1実装時点の基本契約を記録する。
+
 ## 共有契約と画面
 
 `packages/core/src/index.ts` のZodスキーマをFrontend・API・Worker・保存処理で共有する。画面は `#/`（開始）、`#/audits`（履歴）、`#/audits/:id`（詳細）。履歴の次ページは `#/audits?cursor=...`。

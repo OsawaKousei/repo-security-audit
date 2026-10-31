@@ -8,8 +8,10 @@
 |---|---|
 | [ローカル基本仕様](local-basic.md) | Phase 1の画面・API・データ・Mock Worker・設定境界 |
 | [Phase 1検証記録](phase1-verification.md) | 実行した検証、結果、未確認事項 |
+| [ローカルWorker仕様](local-worker.md) | Phase 2のGitHub・npm・AI・予算・状態契約 |
+| [Phase 2検証記録](phase2-verification.md) | 実API・自動テスト・画面確認の結果 |
 
-実認証・GitHub取得・npm監査・実AI・AWS統合は未実装。以前の5分野の計画は引き続き実装計画で管理する。
+実認証・SQS・AWS統合は未実装。以前の5分野の計画は引き続き実装計画で管理する。
 
 ## 記載する内容
 

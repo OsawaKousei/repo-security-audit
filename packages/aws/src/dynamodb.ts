@@ -1,7 +1,7 @@
 import { CreateTableCommand, DescribeTableCommand, DynamoDBClient, waitUntilTableExists } from '@aws-sdk/client-dynamodb'
 import { setTimeout as delay } from 'node:timers/promises'
 import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
-import { AuditError, auditSchema, jobIdSchema, type Audit, type AuditStore } from '@repo-sentinel/core'
+import { AuditError, auditSchema, jobIdSchema, machineResultSchema, type Audit, type AuditStore, type MachineResult } from '@repo-sentinel/core'
 
 const key = (ownerSub: string, jobId: string) => ({ PK: `USER#${ownerSub}`, SK: `AUDIT#${jobId}` })
 const lockKey = { PK: 'SYSTEM', SK: 'ACTIVE_AUDIT' }
@@ -135,5 +135,25 @@ export class DynamoAuditStore implements AuditStore {
   async active() {
     const { Item } = await this.db.send(new GetCommand({ TableName: this.tableName, Key: lockKey, ConsistentRead: true }))
     return Item ? { ownerSub: Item.ownerSub as string, jobId: Item.jobId as string, leaseUntil: Item.leaseUntil as number } : undefined
+  }
+  async saveMachine(ownerSub: string, jobId: string, machine: MachineResult) {
+    machineResultSchema.parse(machine)
+    if (Buffer.byteLength(JSON.stringify(machine)) > 250 * 1024) throw new AuditError('RESULT_TOO_LARGE', '機械監査結果が保存上限を超えました。', 413)
+    return this.updateRunning(ownerSub, jobId, 'SET audit.machine = :machine', { ':machine': machine })
+  }
+  async beginAi(ownerSub: string, jobId: string, model: string, attemptedAt: string) {
+    return this.updateRunning(ownerSub, jobId,
+      'SET audit.aiModel = :model, audit.aiAttemptedAt = :at', { ':model': model, ':at': attemptedAt },
+      ' AND attribute_not_exists(audit.aiAttemptedAt)')
+  }
+  private async updateRunning(ownerSub: string, jobId: string, expression: string, values: Record<string, unknown>, condition = '') {
+    try {
+      await this.db.send(new UpdateCommand({
+        TableName: this.tableName, Key: key(ownerSub, jobId), UpdateExpression: expression,
+        ConditionExpression: `audit.#status = :running${condition}`,
+        ExpressionAttributeNames: { '#status': 'status' }, ExpressionAttributeValues: { ...values, ':running': 'RUNNING' },
+      }))
+      return true
+    } catch (error) { if (isConditionalFailure(error)) return false; throw error }
   }
 }

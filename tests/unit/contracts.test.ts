@@ -26,6 +26,10 @@ describe('local-only execution', () => {
     expect(localConfig(env).tableName).toBe('security-audit-jobs-local')
     expect(() => localConfig({})).toThrow()
   })
+  it('supports explicit local audit and AI modes without accepting AWS execution', () => {
+    expect(localConfig({ ...env, AUDIT_MODE: 'audit', AI_MODE: 'openai' })).toMatchObject({ mode: 'audit', aiMode: 'openai' })
+    expect(() => localConfig({ ...env, AI_MODE: 'openai' })).toThrow()
+  })
   it.each([
     { APP_ENV: 'dev' }, { APP_ENV: 'prod' }, { NODE_ENV: 'production' }, { LOCAL_AUTH_BYPASS: 'false' },
     { AUDIT_MODE: 'real' }, { AWS_LAMBDA_FUNCTION_NAME: 'function' }, { AWS_EXECUTION_ENV: 'AWS_Lambda_nodejs24.x' },

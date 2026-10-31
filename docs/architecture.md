@@ -48,11 +48,11 @@ ComposeではFrontend・API・DynamoDB Localを常時起動し、Workerは必要
 | モード | DynamoDB | SQS | Worker | Cognito |
 |---|---|---|---|---|
 | Local Mock（Phase 1実装済み） | Local | DynamoDB実行スロットを使うモック | API内のモック / Compose CLI | localhost限定の初期認証例外 |
-| Local Audit | Local | 不使用 | Composeから処理本体を直接実行 | dev User Pool |
+| Local Audit（Phase 2実装済み） | Local | 不使用 | Compose CLIから実GitHub/npm/AI処理本体を直接実行 | localhost限定の初期認証例外。Phase 3でdev User Poolへ統合 |
 | AWS Dev | AWS | AWS | Lambda | dev User Pool |
 | AWS Prod | AWS | AWS | Lambda | prod User Pool |
 
-Phase 1の実装・検証範囲は[確定仕様](spec/local-basic.md)を参照する。Local Audit・AWS構成・Cognitoは未実装。
+Phase 1の基本契約は[確定仕様](spec/local-basic.md)、Phase 2の実監査・AI・永続費用台帳は[Worker仕様](spec/local-worker.md)を参照する。AWS構成・Cognitoは未実装。
 
 ローカルにSQSエミュレーターは導入しない。初期Phase 1のlocalhost限定認証例外は[開発ワークフロー](dev/workflow.md)に従う。
 

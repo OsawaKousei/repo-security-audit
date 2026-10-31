@@ -2,7 +2,7 @@
 
 ## 現在の状態
 
-2026-11-01にPhase 1のローカル基本実装を追加した。トップレベルの配置は維持している。
+2026-11-01にPhase 1–2のローカル実装を追加した。トップレベルの配置は維持している。
 
 ```text
 repo-security-audit/
@@ -91,7 +91,7 @@ repo-security-audit/
 └── README.md
 ```
 
-このツリーは全Phaseの配置目標であり、全ファイルの作成済みを意味しない。Phase 1では `workers/security-audit/app/src/audit.ts`・`mock.ts`・`local.ts`、`packages/core/src/index.ts`、`packages/aws/src/dynamodb.ts`・`local-config.ts`、`tests/`、`scripts/` を実装した。実GitHub・npm監査・AI・SQS・Worker Lambda・Terraformのファイルは後続Phase。セットアップ入口は[ルートREADME](../../README.md)、仕様入口は[docs/README.md](../README.md)。
+このツリーは全Phaseの配置目標であり、全ファイルの作成済みを意味しない。Phase 1では `workers/security-audit/app/src/audit.ts`・`mock.ts`・`local.ts`、`packages/core/src/index.ts`、`packages/aws/src/dynamodb.ts`・`local-config.ts`、`tests/`、`scripts/` を実装した。Phase 2ではWorkerに `github.ts`・`npm-audit.ts`・`ai-report.ts`・`ai-budget.ts`・`http.ts`・`limits.ts` を追加した。SQS・Worker Lambda・Terraformの実装は後続Phase。セットアップ入口は[ルートREADME](../../README.md)、仕様入口は[docs/README.md](../README.md)。
 
 ## Workspaceと配置ルール
 

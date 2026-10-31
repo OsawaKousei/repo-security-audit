@@ -6,5 +6,5 @@
     "build": "esbuild src/local.ts --bundle --platform=node --target=node24 --format=esm --external:@aws-sdk/* --outdir=dist",
     "audit:local": "tsx src/local.ts"
   },
-  "dependencies": { "@repo-sentinel/core": "0.0.0", "@repo-sentinel/aws": "0.0.0" }
+  "dependencies": { "@repo-sentinel/core": "0.0.0", "@repo-sentinel/aws": "0.0.0", "zod": "^4.1.0", "ulid": "^3.0.0" }
 }

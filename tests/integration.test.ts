@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { DeleteTableCommand } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { monotonicFactory } from 'ulid'
 import { AuditError, auditSchema, type Audit } from '@repo-sentinel/core'
 import { DynamoAuditStore, dynamoClient, ensureTable, localConfig } from '@repo-sentinel/aws'
-import { createMockRunner, failAudit, startMockDispatcher } from '../workers/security-audit/app/src/audit.js'
+import { createAuditRunner, createMockRunner, failAudit, startMockDispatcher } from '../workers/security-audit/app/src/audit.js'
 import { mockResult } from '../workers/security-audit/app/src/mock.js'
 import { createApp } from '../api/app/src/app.js'
+import { machine, manifest, lockfile, aiOutput } from './fixtures/worker.js'
+import { validateAiReport } from '../workers/security-audit/app/src/ai-report.js'
 
 const config = localConfig()
 const table = `security-audit-test-${randomUUID()}-local`
@@ -19,8 +24,9 @@ const pending = (): Audit => ({ jobId: id(), repository: 'example/project', stat
 const app = (owner = 'test-user', enqueue?: (jobId: string, ownerSub: string) => Promise<void>) => createApp({ store, authorize: () => owner, enqueue })
 const post = () => new Request('http://localhost/api/audits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repositoryUrl: 'https://github.com/example/project' }) })
 const instant = { wait: async () => {} }
-before(async () => { await ensureTable(client, table) })
-after(async () => { try { await client.send(new DeleteTableCommand({ TableName: table })) } finally { client.destroy() } })
+let budgetDirectory: string
+before(async () => { await ensureTable(client, table); budgetDirectory = await mkdtemp(join(tmpdir(), 'repo-sentinel-integration-budget-')) })
+after(async () => { try { await client.send(new DeleteTableCommand({ TableName: table })); await rm(budgetDirectory, { recursive: true, force: true }) } finally { client.destroy() } })
 
 test('API create → mock Worker → persisted report and owner isolation', async () => {
   const api = app('flow')
@@ -136,4 +142,117 @@ test('cannot complete a PENDING job or run a job with a different owner', async 
   assert.equal((await store.get('transition', audit.jobId))?.status, 'PENDING')
   await createMockRunner(store, instant)(audit.jobId, 'transition')
   assert.equal((await store.get('transition', audit.jobId))?.status, 'COMPLETED')
+})
+
+const machineOptions = () => ({
+  budgetDirectory,
+  fetchFiles: async () => ({ commitSha: machine.commitSha, packageJson: JSON.stringify(manifest), packageLock: JSON.stringify(lockfile) }),
+  npmAudit: async () => ({ summary: machine.summary, findings: machine.findings }),
+})
+test('real-mode machine result with mock AI persists genuine evidence and never calls AI', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'mock' }
+  await store.create('local-audit', audit)
+  const failOnAi = async () => { throw new Error('AI must not run in mock mode') }
+  await createAuditRunner(store, { ...machineOptions(), aiReport: failOnAi })(audit.jobId, 'local-audit')
+  const saved = await store.get('local-audit', audit.jobId)
+  assert.equal(saved?.status, 'COMPLETED')
+  if (saved?.status === 'COMPLETED') {
+    assert.equal(saved.commitSha, machine.commitSha)
+    assert.equal(saved.summary.high, 1)
+    assert.equal(saved.aiAttemptedAt, undefined)
+  }
+})
+test('mock dispatcher cannot claim a manual real-audit job', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'mock' }
+  await store.create('manual-audit', audit)
+  const stop = startMockDispatcher(store, createMockRunner(store, instant))
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    assert.equal((await store.get('manual-audit', audit.jobId))?.status, 'PENDING')
+    await createAuditRunner(store, machineOptions())(audit.jobId, 'manual-audit')
+    assert.equal((await store.get('manual-audit', audit.jobId))?.status, 'COMPLETED')
+  } finally { stop() }
+})
+test('AI call marker and budget precede the call; duplicate real Workers call once', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await store.create('real-duplicate', audit)
+  let calls = 0
+  const runner = createAuditRunner(store, {
+    ...machineOptions(), openaiKey: 'test-key', hardLimitConfirmed: true,
+    aiReport: async () => {
+      calls += 1
+      const running = await store.get('real-duplicate', audit.jobId)
+      assert.ok(running?.aiAttemptedAt)
+      assert.equal(running?.status, 'RUNNING')
+      const ledger = JSON.parse(await readFile(join(budgetDirectory, 'budget.json'), 'utf8')) as { reservations: { jobId: string }[] }
+      assert.ok(ledger.reservations.some((item) => item.jobId === audit.jobId))
+      return validateAiReport(aiOutput, machine)
+    },
+  })
+  await Promise.all(Array.from({ length: 4 }, () => runner(audit.jobId, 'real-duplicate')))
+  await runner(audit.jobId, 'real-duplicate')
+  assert.equal(calls, 1)
+  assert.equal((await store.get('real-duplicate', audit.jobId))?.status, 'COMPLETED')
+})
+test('AI outcome uncertainty preserves machine evidence and is never automatically retried', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await store.create('uncertain', audit)
+  let calls = 0
+  const runner = createAuditRunner(store, {
+    ...machineOptions(), openaiKey: 'test-key', hardLimitConfirmed: true,
+    aiReport: async () => { calls += 1; throw new AuditError('AI_OUTCOME_UNKNOWN', 'uncertain', 503) },
+  })
+  await runner(audit.jobId, 'uncertain'); await runner(audit.jobId, 'uncertain')
+  const failed = await store.get('uncertain', audit.jobId)
+  assert.equal(failed?.status, 'FAILED')
+  if (failed?.status === 'FAILED') {
+    assert.equal(failed.errorCode, 'AI_OUTCOME_UNKNOWN')
+    assert.equal(failed.machine?.commitSha, machine.commitSha)
+    assert.ok(failed.aiAttemptedAt)
+  }
+  assert.equal(calls, 1)
+  assert.equal(await store.active(), undefined)
+})
+test('budget exhaustion stops before external AI and retains evidence', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await store.create('budget', audit)
+  let calls = 0
+  await createAuditRunner(store, {
+    ...machineOptions(), openaiKey: 'test-key', hardLimitConfirmed: true,
+    reserveBudget: async () => { throw new AuditError('AI_BUDGET_LIMIT', 'budget', 429) },
+    aiReport: async () => { calls += 1; return validateAiReport(aiOutput, machine) },
+  })(audit.jobId, 'budget')
+  const failed = await store.get('budget', audit.jobId)
+  assert.equal(failed?.status, 'FAILED')
+  if (failed?.status === 'FAILED') { assert.equal(failed.errorCode, 'AI_BUDGET_LIMIT'); assert.ok(failed.machine) }
+  assert.equal(calls, 0)
+})
+test('machine failure never invokes AI or generates a report', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await store.create('npm-failure', audit)
+  let calls = 0
+  await createAuditRunner(store, {
+    ...machineOptions(), openaiKey: 'test-key', hardLimitConfirmed: true,
+    npmAudit: async () => { throw new AuditError('NPM_TIMEOUT', 'timeout', 503) },
+    aiReport: async () => { calls += 1; return validateAiReport(aiOutput, machine) },
+  })(audit.jobId, 'npm-failure')
+  const failed = await store.get('npm-failure', audit.jobId)
+  assert.equal(failed?.status, 'FAILED')
+  if (failed?.status === 'FAILED') { assert.equal(failed.errorCode, 'NPM_TIMEOUT'); assert.equal(failed.machine, undefined) }
+  assert.equal(calls, 0)
+})
+test('CLI recovery of expired real execution preserves the AI marker without calling again', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await store.create('real-expiry', audit)
+  await store.claim('real-expiry', audit.jobId)
+  await store.saveMachine('real-expiry', audit.jobId, machine)
+  await store.beginAi('real-expiry', audit.jobId, 'test-model', new Date().toISOString())
+  await DynamoDBDocumentClient.from(client).send(new UpdateCommand({ TableName: table, Key: { PK: 'SYSTEM', SK: 'ACTIVE_AUDIT' }, UpdateExpression: 'SET leaseUntil = :past', ExpressionAttributeValues: { ':past': 0 } }))
+  let calls = 0
+  await createAuditRunner(store, { ...machineOptions(), aiReport: async () => { calls += 1; return validateAiReport(aiOutput, machine) } })(audit.jobId, 'real-expiry')
+  const failed = await store.get('real-expiry', audit.jobId)
+  assert.equal(failed?.status, 'FAILED')
+  if (failed?.status === 'FAILED') { assert.equal(failed.errorCode, 'JOB_TIMEOUT'); assert.ok(failed.aiAttemptedAt); assert.ok(failed.machine) }
+  assert.equal(calls, 0)
+  assert.equal(await store.active(), undefined)
 })

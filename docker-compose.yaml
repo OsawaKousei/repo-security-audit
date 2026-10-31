@@ -10,7 +10,8 @@ x-local-env: &local-env
   NODE_ENV: development
   APP_ENV: local
   LOCAL_AUTH_BYPASS: "true"
-  AUDIT_MODE: mock
+  AUDIT_MODE: "${AUDIT_MODE:-mock}"
+  AI_MODE: "${AI_MODE:-mock}"
   MOCK_OUTCOME: "${MOCK_OUTCOME:-success}"
   DYNAMODB_ENDPOINT: http://dynamodb:8000
   DYNAMODB_TABLE: security-audit-jobs-local
@@ -19,6 +20,9 @@ x-local-env: &local-env
 services:
   frontend:
     <<: *node
+    volumes:
+      - ./:/workspace
+      - /dev/null:/workspace/.env:ro
     environment:
       NODE_ENV: development
       npm_config_cache: /tmp/npm-cache
@@ -31,6 +35,9 @@ services:
 
   api:
     <<: *node
+    volumes:
+      - ./:/workspace
+      - /dev/null:/workspace/.env:ro
     environment: *local-env
     command: npm run dev -w api/app
     ports:
@@ -47,7 +54,12 @@ services:
   worker:
     <<: *node
     profiles: [tools]
-    environment: *local-env
+    environment:
+      <<: *local-env
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
+      OPENAI_HARD_LIMIT_CONFIRMED: "${OPENAI_HARD_LIMIT_CONFIRMED:-false}"
+      AI_BUDGET_DIR: /workspace/.local/ai-usage
     depends_on:
       - dynamodb
     command: npm run audit:local -w workers/security-audit/app --

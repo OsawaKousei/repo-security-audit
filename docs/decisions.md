@@ -33,6 +33,23 @@
 | DATA-03 | Local CLIは固定所有者、APIと同じ処理本体 | 実SQSメッセージ・所有者検証はPhase 4 |
 | DATA-04 | LocalはTTLなし・メモリ寿命、350KiBで結果拒否し小さい失敗記録 | AWS保持期限・TTLはデプロイ前 |
 
+## Phase 2で確定した範囲（2026-11-01）
+
+この表は同一IDのPhase 1残課題を更新する。詳細は[Worker確定仕様](spec/local-worker.md)、実行方法は[ローカル開発](dev/local-development.md)、根拠は[Phase 2検証記録](spec/phase2-verification.md)を参照する。
+
+| ID | 決定した範囲 | 残る判断 |
+|---|---|---|
+| DEV-04 | AUDIT_MODEとAI_MODEを分離、CLIで作成・実行、鍵はWorkerだけに注入 | Cognito設定はPhase 3 |
+| API-02 / AUDIT-03 | 正規化は脆弱性を持つパッケージ単位、間接advisory解決、infoを含む件数照合、npm修正対象名を保持 | 機能拡張時に再検討 |
+| DATA-02 | Localの固定180秒リースに対し全体170秒以内、期限切れ失敗。AI前の条件付き記録と自動再試行禁止 | AWS分散実行・SQSの再配信はPhase 4 |
+| DATA-03 | CLIは固定所有者で保存されたmode/aiModeと一致検証。URLによる作成・直接実行を追加 | SQSの所有者解決はPhase 4 |
+| DATA-04 | 機械結果をAI前に保存、AI失敗時も根拠を保持。250KiB/350KiBの保存上限 | AWS TTL・保持期間 |
+| AUDIT-01 | GitHub/npm/AIと全体の時間・サイズ・出力上限を固定 | Lambdaランタイムでの再検証 |
+| AUDIT-02 | GitHubの公開meta・commit/tree/blobでSHA固定、lock 2/3、workspace/git/file/URL依存拒否、npm Registry固定 | 追加のlock形式対応は範囲外 |
+| AI-01 | gpt-5.6-luna、固定プロンプト、厳格Structured OutputsとZod、根拠index照合、数値等の自由生成を抑制 | 自然言語全体の意味は機械的に保証しない |
+| AI-02 | 呼び出し前の保存・永続予約、同一ジョブ再予約禁止。timeout/不正出力/成否不明でも自動再試行しない | AWS用の共有予算管理・実行復旧はPhase 4 |
+| COST-01 | 公式のProject Hard spend limit手順を確認。利用者が専用Projectの月額$10強制停止設定済みと回答。アプリにも永続日次・月次制限 | 管理画面・管理APIでの設定値や実上限到達は独立検証していない。環境追加時に確認 |
+
 ## 開発環境・ビルド
 
 | ID | 決めること | 担当文書・判断時点 |

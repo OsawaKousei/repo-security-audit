@@ -24,30 +24,49 @@ export const summarySchema = z.object({
 export const findingSchema = z.object({
   package: z.string(), title: z.string(), severity: severitySchema,
   range: z.string(), fixAvailable: z.boolean(), advisoryUrl: z.url(),
+  fixVersion: z.string().nullable().optional(),
+  fixPackage: z.string().nullable().optional(), fixIsSemVerMajor: z.boolean().optional(),
+  advisories: z.array(z.object({ title: z.string(), url: z.url(), severity: severitySchema, range: z.string() }).strict()).optional(),
+  viaPackages: z.array(z.string()).optional(),
 }).strict()
 export const reportSchema = z.object({
   overallAssessment: z.string(), summary: z.string(), priorities: z.array(z.string()),
   impacts: z.array(z.string()), recommendations: z.array(z.string()), limitations: z.array(z.string()),
 }).strict()
-export const failureCodeSchema = z.enum(['MOCK_FAILURE', 'DISPATCH_FAILED', 'JOB_TIMEOUT', 'RESULT_TOO_LARGE', 'WORKER_FAILED'])
+export const failureCodeSchema = z.enum([
+  'MOCK_FAILURE', 'DISPATCH_FAILED', 'JOB_TIMEOUT', 'RESULT_TOO_LARGE', 'WORKER_FAILED',
+  'GITHUB_NOT_FOUND', 'GITHUB_PRIVATE', 'GITHUB_RATE_LIMIT', 'GITHUB_FAILED', 'GITHUB_TIMEOUT',
+  'FILE_MISSING', 'FILE_TOO_LARGE', 'UNSUPPORTED_PROJECT', 'INVALID_LOCKFILE',
+  'NPM_TIMEOUT', 'NPM_OUTPUT_TOO_LARGE', 'NPM_FAILED', 'NPM_INVALID_OUTPUT',
+  'AI_INPUT_TOO_LARGE', 'AI_BUDGET_LIMIT', 'AI_ALREADY_ATTEMPTED', 'AI_BUDGET_UNAVAILABLE',
+  'AI_NOT_CONFIGURED', 'AI_TIMEOUT', 'AI_REQUEST_FAILED', 'AI_OUTCOME_UNKNOWN',
+  'AI_REFUSED', 'AI_INCOMPLETE', 'AI_INVALID_OUTPUT', 'AI_UNGROUNDED_OUTPUT', 'MODE_MISMATCH',
+])
+const machineFields = {
+  commitSha: z.string().regex(/^[0-9a-f]{40}$/), summary: summarySchema, findings: z.array(findingSchema),
+}
+export const machineResultSchema = z.object(machineFields).strict()
+export type MachineResult = z.infer<typeof machineResultSchema>
 const base = {
-  jobId: jobIdSchema, repository: z.string(), mode: z.literal('mock'),
+  jobId: jobIdSchema, repository: z.string(), mode: z.enum(['mock', 'audit']),
+  aiMode: z.enum(['mock', 'openai']).optional(),
+  aiAttemptedAt: z.iso.datetime().optional(), aiModel: z.string().optional(),
   createdAt: z.iso.datetime(), attemptCount: z.number().int().nonnegative(),
 }
 export const auditSchema = z.discriminatedUnion('status', [
   z.object({ ...base, status: z.literal('PENDING') }).strict(),
-  z.object({ ...base, status: z.literal('RUNNING'), startedAt: z.iso.datetime() }).strict(),
+  z.object({ ...base, status: z.literal('RUNNING'), startedAt: z.iso.datetime(), machine: machineResultSchema.optional() }).strict(),
   z.object({
     ...base, status: z.literal('COMPLETED'), startedAt: z.iso.datetime(), finishedAt: z.iso.datetime(),
-    commitSha: z.string().regex(/^[0-9a-f]{40}$/), summary: summarySchema,
-    findings: z.array(findingSchema), report: reportSchema,
+    ...machineFields, report: reportSchema,
   }).strict(),
   z.object({
     ...base, status: z.literal('FAILED'), startedAt: z.iso.datetime().optional(),
-    finishedAt: z.iso.datetime(), errorCode: failureCodeSchema,
+    finishedAt: z.iso.datetime(), errorCode: failureCodeSchema, machine: machineResultSchema.optional(),
   }).strict(),
 ])
 export const createAuditResponseSchema = z.object({ jobId: jobIdSchema, status: z.literal('PENDING') }).strict()
+export const healthSchema = z.object({ status: z.literal('ok'), service: z.string(), mode: z.enum(['mock', 'audit']), aiMode: z.enum(['mock', 'openai']) }).strict()
 export const historyQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20), cursor: z.string().max(256).optional(),
 }).strict()
@@ -75,4 +94,6 @@ export interface AuditStore {
   claim(ownerSub: string, jobId: string): Promise<Audit | undefined>
   finish(ownerSub: string, audit: Audit): Promise<boolean>
   active(): Promise<{ ownerSub: string; jobId: string; leaseUntil: number } | undefined>
+  saveMachine(ownerSub: string, jobId: string, machine: MachineResult): Promise<boolean>
+  beginAi(ownerSub: string, jobId: string, model: string, attemptedAt: string): Promise<boolean>
 }

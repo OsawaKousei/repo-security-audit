@@ -1,8 +1,8 @@
 # Repo Sentinel — PoC実装計画
 
-**状態:** Phase 1のローカル基本フローを実装・検証済み。確定した範囲は[ローカル基本仕様](../spec/local-basic.md)、確認根拠は[検証記録](../spec/phase1-verification.md)を参照する。本書の未実装部分は後続Phaseの要件とする。
+**状態:** Phase 2のローカルWorkerまで実装・検証済み。追加契約は[Worker仕様](../spec/local-worker.md)、最新の確認根拠は[Phase 2検証記録](../spec/phase2-verification.md)。確定した範囲は[ローカル基本仕様](../spec/local-basic.md)、確認根拠は[検証記録](../spec/phase1-verification.md)を参照する。本書の未実装部分は後続Phaseの要件とする。
 
-本書はFrontend・API・データ・Worker・AIの固有要件を管理する。共通要件や手順は下表の担当文書に一本化し、本書へ複製しない。Phase 1ではFrontend、API、共有Zod契約、DynamoDB Local、モックWorker、履歴・ポーリング・結果表示を実装した。実認証、実GitHub・npm監査・AI、SQS、AWSインフラは未実装。本書の将来要件や例示を実装済みと扱わない。
+本書はFrontend・API・データ・Worker・AIの固有要件を管理する。共通要件や手順は下表の担当文書に一本化し、本書へ複製しない。Phase 1ではFrontend、API、共有Zod契約、DynamoDB Local、モックWorker、履歴・ポーリング・結果表示を実装した。Phase 2で実GitHub取得・npm監査・AIモック/実Responses APIを実装した。実認証、SQS、AWSインフラは未実装。本書の将来要件や例示を実装済みと扱わない。
 
 ## 参照先と担当範囲
 
@@ -235,6 +235,8 @@ stateDiagram-v2
 
 ## Worker・機械監査
 
+ローカルの実装済み契約・対応範囲は[Worker仕様](../spec/local-worker.md)に確定した。以下のSQS/Lambda設定とメッセージ契約は後続Phaseの計画。
+
 ### 処理本体とエントリーポイント
 
 配置先は `workers/security-audit/app`。処理本体をLambdaに依存しない関数として実装する。
@@ -277,7 +279,7 @@ https://github.com/{owner}/{repository}
 - モノレポ内の個別ワークスペース、任意ブランチ・コミット指定には対応しない。
 - GitHub以外の任意URLをバックエンドで取得しない。
 
-`owner/repo` を検証し、各ファイルサイズと取得時間に上限を設定する。具体値、欠損・非対応lockfileの扱い、GitHub API認証方法は[未確定事項](../decisions.md)で確定する。
+`owner/repo` を検証し、各ファイルサイズと取得時間に上限を設定する。具体値、欠損・非対応lockfileの扱い、GitHub API認証方法はローカルの[確定仕様](../spec/local-worker.md)を参照する。
 
 ### npm audit
 
@@ -332,6 +334,8 @@ SQSメッセージはジョブIDを送る要件がある一方、処理本体は
 
 ## AIレポート
 
+ローカルの固定モデル・Structured Outputs・事実照合・費用制限は[Worker仕様](../spec/local-worker.md)に確定した。AWSの秘密情報・分散実行は後続Phase。
+
 ### 役割
 
 OpenAI Responses APIを使用し、機械監査結果を分析して人間向けのレポートを生成する。AIに監査ロジックの生成、インターネット検索、追加ツール利用、コード修正をさせない。
@@ -373,7 +377,7 @@ Structured Outputsを使用し、JSON Schemaに準拠した出力を取得する
 - 監査の限界・注意事項をレポートに含める。
 - JSON Schemaへの適合と、内容の事実整合性は別に検証する。
 
-事実整合性の具体的な照合方式や、拒否・不完全出力時のエラーコードは未確定。
+ローカルの事実照合方式と拒否・不完全出力のエラーは[確定仕様](../spec/local-worker.md)を参照する。自然言語全体の意味を保証するものではない。
 
 ### 実行制約
 

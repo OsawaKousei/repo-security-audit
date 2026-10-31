@@ -2,7 +2,7 @@
 
 本書は認証・外部入力・秘密情報・費用制限の基準を定める。ローカル開発環境の変更によってこれらの要件を緩和しない。
 
-Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。以下のCognito・AWS・実AI要件は後続Phaseで実装する。
+Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。Phase 2の外部入力・秘密情報・実AI・永続費用台帳は[Worker仕様](spec/local-worker.md)に実装済みの境界を記録した。Cognito・AWS要件は後続Phase。
 
 ## Cognito認証とユーザー認可
 
@@ -53,7 +53,7 @@ CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` �
 - コマンド出力サイズと実行時間を制限する。
 - 一時ファイルを処理後に削除する。
 
-監査コマンドとエラー判定は[Worker仕様](plan/implementation-plan.md#worker)を参照する。具体的なサイズ・時間・接続先の設定値は[未確定事項](decisions.md)で確定する。
+ローカルの監査コマンド・エラー判定・サイズ・時間・接続先は[Worker確定仕様](spec/local-worker.md)を参照する。AWSランタイムの検証は後続Phase。
 
 ## OpenAI APIとアプリケーションの初期制限
 
@@ -68,7 +68,7 @@ CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` �
 | Worker実行時間 | 180秒 |
 | OpenAI月額支出 | 専用Projectで$10を初期上限とする |
 
-基本仕様書はOpenAI Projectの「Hard spend limit」有効化を要求している。この要求は維持するが、利用アカウントで利用可能な強制停止機能・設定方法は本ワークスペースでは未検証。単なる予算通知を強制上限として扱わず、実AI接続前に[未確定事項](decisions.md)で実現方式を確認する。
+基本仕様書のOpenAI Project「Hard spend limit」要求を維持する。[公式Spend limits](https://developers.openai.com/api/docs/guides/spend-limits)で設定手順と強制停止を確認し、2026-11-01に利用者から専用Projectの月額$10強制停止を設定済みとの回答を得て実APIを検証した。管理画面・管理APIでの設定値確認や上限到達試験は行っていない。通知と強制停止を区別し、実AI起動時に確認フラグを要求する。
 
 原文の前提どおり、外部の支出制限に反映遅延や超過の可能性があるものとして、アプリケーション側でも利用を制限する。DynamoDBの条件付き更新などで日次回数を管理し、同時リクエストで突破できないようにする。
 

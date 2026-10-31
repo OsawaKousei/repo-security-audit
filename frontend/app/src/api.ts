@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { auditSchema, createAuditResponseSchema, errorResponseSchema, historyResponseSchema } from '@repo-sentinel/core'
+import { auditSchema, createAuditResponseSchema, errorResponseSchema, healthSchema, historyResponseSchema } from '@repo-sentinel/core'
 
 export class RequestError extends Error {
   status: number
@@ -20,6 +20,7 @@ async function request<T>(path: string, schema: z.ZodType<T>, options: RequestIn
   return result.data
 }
 export const getAudit = (id: string, signal: AbortSignal) => request(`/audits/${encodeURIComponent(id)}`, auditSchema, { signal })
+export const getHealth = (signal: AbortSignal) => request('/health', healthSchema, { signal })
 export const getHistory = (cursor: string | undefined, signal: AbortSignal) => request(`/audits${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, historyResponseSchema, { signal })
 export const createAudit = (repositoryUrl: string) => request('/audits', createAuditResponseSchema, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repositoryUrl }),

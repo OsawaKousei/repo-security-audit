@@ -30,6 +30,8 @@
 
 目的：実際の機械監査とAI分析を確認する。
 
+2026-11-01：Phase 2を実装し、AIモックの実監査、実OpenAIレポート生成、ブラウザー表示を確認した。契約・範囲は[Worker仕様](../spec/local-worker.md)、結果・確認の限界は[Phase 2検証記録](../spec/phase2-verification.md)を参照する。
+
 - GitHub API連携、対象SHA・対象ファイル取得。
 - `npm audit`、結果正規化。
 - OpenAI Responses API、Structured Outputs検証。
