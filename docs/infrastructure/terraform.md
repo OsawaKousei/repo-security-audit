@@ -1,0 +1,82 @@
+# インフラ・運用
+
+## 管理方針
+
+AWSリソースはTerraformで管理する。ローカル開発環境の変更に伴うAWS構成の変更は行わない。配置先は `infra/terraform`、ディレクトリは[リポジトリ構成](../development/repository.md)に従う。
+
+## 管理対象
+
+| 領域 | リソース |
+|---|---|
+| Frontend | S3 Bucket、CloudFront Distribution、S3 OAC |
+| API | API Lambda、Function URL、Lambda用OAC、Function URL Resource Policy、API用IAM Role |
+| Worker | Worker Lambda、Worker用IAM Role、SQS Event Source Mapping、CloudWatch Log Group |
+| Database | DynamoDB Table |
+| Queue | SQS Queue、DLQ、Redrive Policy |
+| Authentication | Cognito User Pool、App Client、Domain、MFA設定 |
+| Security | Secrets Manager Secret、IAM Policies、AWS Budgets |
+
+CloudFrontは `/` をS3、`/api/*` をFunction URLへルーティングする。S3の公開アクセスを禁止し、両オリジンにOACを設定する。Function URLは `AWS_IAM` 認証とし、直接アクセスを拒否する。
+
+APIキャッシュを無効化する。JWT専用ヘッダーとPOSTの `x-amz-content-sha256` を含むリクエスト転送を整える。詳細は[API仕様](../specifications/api.md)と[セキュリティ要件](../security.md)に従う。
+
+SQS・Lambdaの初期数値と同時実行の整合は[Worker仕様](../specifications/worker.md)を正とする。
+
+## 環境分離
+
+dev/prodを論理的に分離する。
+
+- Terraform State。
+- Cognito User Pool。
+- DynamoDB Table。
+- SQS Queue。
+- Lambda関数。
+- OpenAI APIキー。
+
+PoC初期はdevのみでもよい。prodはdevで一連の動作を確認してから作る。ローカル認証はdev User Poolを利用し、localhost Callback URLを登録する。
+
+## Terraform State
+
+S3 Backendを使用する。
+
+- `bootstrap/` でState用S3 Bucketを作成する。
+- S3 Versioningを有効にする。
+- S3ネイティブロックを使用する。
+- Stateの公開アクセスを禁止する。
+- Stateアクセスを管理用IAMへ限定する。
+- DynamoDBによるTerraform Stateロックは使わない。
+
+TerraformはSecrets ManagerのSecretリソースを管理するが、OpenAI APIキー値をStateへ入れない。値の注入・更新手順は[未確定事項](../decisions.md)を解消して定義する。
+
+Terraform・Providerバージョンとロック対応を確定し、検証・Planをホストで実行する。`apply` / `destroy` などの確認は[開発ワークフロー](../development/workflow.md)に従う。
+
+## ビルド・デプロイ
+
+開発用DockerコンテナをそのままAWSへデプロイしない。
+
+| 対象 | 成果物 |
+|---|---|
+| Frontend | Viteでビルドした静的ファイル |
+| API | HonoのLambdaエントリーポイントを含むLambda向けパッケージ |
+| Worker | SQSハンドラーと監査処理本体を含むLambda向けパッケージ |
+
+本番向けビルドはクリーン環境で `npm ci` を行う。ホストの `node_modules` をコピー・流用せず、対象Lambdaランタイムに適合する依存関係・成果物を生成する。
+
+具体的なビルドスクリプト、Lambdaへのnpm実行環境の同梱、デプロイ手段は[未確定事項](../decisions.md)で確定する。
+
+## 監視・運用
+
+CloudWatchの監視対象：
+
+- API Lambdaのエラー。
+- Worker Lambdaのエラーとタイムアウト。
+- SQS滞留。
+- DLQメッセージ数。
+- ジョブの異常終了。
+- OpenAI APIエラー。
+
+AWS Budgetsを設定し、アプリケーションの利用制限と併用する。アラートだけに費用制限を依存させない。ログに秘密情報・認証情報・不要なリポジトリ内容を残さない。
+
+障害時はジョブ状態、リース、SQS/DLQ、Workerログを照合する。AI呼び出し後の不確実な失敗は自動再実行を抑制する。DLQの再投入やリース切れジョブの復旧手順は未確定であり、単純な再投入を標準手順としない。
+
+監視閾値、ログ保持期間、履歴保持・TTL、復旧手順は実装前に[未確定事項](../decisions.md)で確定する。
