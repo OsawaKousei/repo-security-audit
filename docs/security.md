@@ -35,7 +35,7 @@ Frontendはトークンを可能な限りメモリに保持し、永続ストレ
 - CloudFrontからのオリジンアクセスを適切に制限する。
 - LambdaのIAMロールは最小権限とする。
 
-CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` などの専用ヘッダーで転送する。POSTは `x-amz-content-sha256` を設定する。最終的なヘッダー・転送契約は[API仕様](specifications/api.md)で管理する。
+CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` などの専用ヘッダーで転送する。POSTは `x-amz-content-sha256` を設定する。最終的なヘッダー・転送契約は[API仕様](plan/implementation-plan.md#api)で管理する。
 
 ## 外部リポジトリ・子プロセス
 
@@ -51,7 +51,7 @@ CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` �
 - コマンド出力サイズと実行時間を制限する。
 - 一時ファイルを処理後に削除する。
 
-監査コマンドとエラー判定は[Worker仕様](specifications/worker.md)を参照する。具体的なサイズ・時間・接続先の設定値は[未確定事項](decisions.md)で確定する。
+監査コマンドとエラー判定は[Worker仕様](plan/implementation-plan.md#worker)を参照する。具体的なサイズ・時間・接続先の設定値は[未確定事項](decisions.md)で確定する。
 
 ## OpenAI APIとアプリケーションの初期制限
 
@@ -70,7 +70,7 @@ CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` �
 
 原文の前提どおり、外部の支出制限に反映遅延や超過の可能性があるものとして、アプリケーション側でも利用を制限する。DynamoDBの条件付き更新などで日次回数を管理し、同時リクエストで突破できないようにする。
 
-OpenAI API失敗時に無制限に再試行しない。AI呼び出し後の成否が不確実な失敗は自動再実行を抑制する。[データ設計](specifications/data-model.md)の冪等性と合わせて実装する。
+OpenAI API失敗時に無制限に再試行しない。AI呼び出し後の成否が不確実な失敗は自動再実行を抑制する。[データ設計](plan/implementation-plan.md#data-model)の冪等性と合わせて実装する。
 
 AWS Budgetsも設定するが、請求アラートだけを費用制限手段にしない。
 
@@ -83,10 +83,10 @@ AWS Budgetsも設定するが、請求アラートだけを費用制限手段に
 - API・WorkerのIAMロールは役割に必要な権限へ限定する。
 - Codexが利用するAWS認証情報は開発用の最小権限へ限定する。
 
-IAM変更・Secrets Manager更新などの確認要件は[開発ワークフロー](development/workflow.md)を参照する。
+IAM変更・Secrets Manager更新などの確認要件は[開発ワークフロー](dev/workflow.md)を参照する。
 
 ## ログと監視
 
 ログへアクセストークン、APIキー、認証ヘッダー、不要なリポジトリ内容を記録しない。CloudWatchでAPIエラー、Workerエラー・タイムアウト、SQS滞留、DLQ件数、ジョブ異常終了、OpenAI APIエラーを監視する。
 
-リソースと運用上の確認は[インフラ・運用](infrastructure/terraform.md)、攻撃・障害ケースの検証は[検証計画](testing.md)を参照する。
+リソースと運用上の確認は[インフラ・運用](infra/terraform.md)、攻撃・障害ケースの検証は[検証計画](testing.md)を参照する。

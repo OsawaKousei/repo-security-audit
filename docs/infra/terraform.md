@@ -2,7 +2,7 @@
 
 ## 管理方針
 
-AWSリソースはTerraformで管理する。ローカル開発環境の変更に伴うAWS構成の変更は行わない。配置先は `infra/terraform`、ディレクトリは[リポジトリ構成](../development/repository.md)に従う。
+AWSリソースはTerraformで管理する。ローカル開発環境の変更に伴うAWS構成の変更は行わない。配置先は `infra/terraform`、ディレクトリは[リポジトリ構成](../dev/repository.md)に従う。
 
 ## 管理対象
 
@@ -18,9 +18,9 @@ AWSリソースはTerraformで管理する。ローカル開発環境の変更�
 
 CloudFrontは `/` をS3、`/api/*` をFunction URLへルーティングする。S3の公開アクセスを禁止し、両オリジンにOACを設定する。Function URLは `AWS_IAM` 認証とし、直接アクセスを拒否する。
 
-APIキャッシュを無効化する。JWT専用ヘッダーとPOSTの `x-amz-content-sha256` を含むリクエスト転送を整える。詳細は[API仕様](../specifications/api.md)と[セキュリティ要件](../security.md)に従う。
+APIキャッシュを無効化する。JWT専用ヘッダーとPOSTの `x-amz-content-sha256` を含むリクエスト転送を整える。詳細は[API仕様](../plan/implementation-plan.md#api)と[セキュリティ要件](../security.md)に従う。
 
-SQS・Lambdaの初期数値と同時実行の整合は[Worker仕様](../specifications/worker.md)を正とする。
+SQS・Lambdaの初期数値と同時実行の整合は[Worker仕様](../plan/implementation-plan.md#worker)を正とする。
 
 ## 環境分離
 
@@ -48,7 +48,7 @@ S3 Backendを使用する。
 
 TerraformはSecrets ManagerのSecretリソースを管理するが、OpenAI APIキー値をStateへ入れない。値の注入・更新手順は[未確定事項](../decisions.md)を解消して定義する。
 
-Terraform・Providerバージョンとロック対応を確定し、検証・Planをホストで実行する。`apply` / `destroy` などの確認は[開発ワークフロー](../development/workflow.md)に従う。
+Terraform・Providerバージョンとロック対応を確定し、検証・Planをホストで実行する。`apply` / `destroy` などの確認は[開発ワークフロー](../dev/workflow.md)に従う。
 
 ## ビルド・デプロイ
 

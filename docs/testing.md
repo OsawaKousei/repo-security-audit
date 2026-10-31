@@ -16,11 +16,11 @@
 | IAM・CloudFront | AWS dev |
 | Terraform | ホストで検証・Plan、AWS devで動作確認 |
 
-型チェック・ESLint・単体テストはホストで実行する。環境構築・コマンドは[ローカル開発](development/local-development.md)、段階ごとの完了条件は[開発ワークフロー](development/workflow.md)を参照する。
+型チェック・ESLint・単体テストはホストで実行する。環境構築・コマンドは[ローカル開発](dev/local-development.md)、段階ごとの完了条件は[開発ワークフロー](dev/workflow.md)を参照する。
 
 ## ローカル開発環境の受け入れ条件
 
-変更要件書 §10の全条件を引き継ぐ。
+[統合計画](plan/implementation-plan.md#acceptance)の開発環境の14条件を検証する。
 
 - [ ] UbuntuホストのVS Codeでモノレポ全体を編集できる。
 - [ ] Codex拡張機能からモノレポ全体を参照・変更できる。
@@ -54,7 +54,7 @@
 
 ## セキュリティ・障害・重複の最終検証
 
-基本仕様書Phase 5の全項目を含む。
+[統合計画](plan/implementation-plan.md#workflow)の最終検証フェーズの全項目を含む。
 
 | ケース | 確認する結果 |
 |---|---|
@@ -83,7 +83,7 @@
 
 ## PoC完了条件
 
-基本仕様書 §14の全条件を引き継ぐ。
+[統合計画](plan/implementation-plan.md#acceptance)のPoC完了の12条件を検証する。
 
 - [ ] 公開GitHubリポジトリを指定できる。
 - [ ] npmの機械監査を実行できる。

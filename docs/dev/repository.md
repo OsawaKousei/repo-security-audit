@@ -123,4 +123,4 @@ Compose定義は既存の `docker-compose.yaml` を使用し、別名のファ�
 
 アプリごとのディレクトリに分かれていても、Composeのbind mountはリポジトリルート全体を維持する。共有 `node_modules` と `packages/*` を同時に参照するため、アプリの `app/` だけをmountする構成にはしない。Dockerfileで共通パッケージを含むイメージをビルドする場合も、ビルドコンテキストはリポジトリルートを基準にする。
 
-`node_modules` と秘密情報を含む環境変数ファイルをGit管理から除外する設定は、環境初期化時に追加する。現在の `.gitignore` は `docs/plan/` の除外のみである。
+`node_modules` と秘密情報を含む環境変数ファイルをGit管理から除外する設定は、環境初期化時に追加する。`docs/plan/` の実装計画はGit管理対象とする。

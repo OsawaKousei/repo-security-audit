@@ -21,7 +21,7 @@ flowchart TD
 
 S3とLambda Function URLの両方にCloudFront OACを設定する。Function URLは `AWS_IAM` 認証とし、CloudFrontを経由しない直接アクセスを拒否する。ブラウザーは同一オリジンの `/api/...` にアクセスする。
 
-Cognito JWTとCloudFrontのSigV4署名の扱いは[セキュリティ要件](security.md)、リソース構築は[インフラ・運用](infrastructure/terraform.md)を参照する。
+Cognito JWTとCloudFrontのSigV4署名の扱いは[セキュリティ要件](security.md)、リソース構築は[インフラ・運用](infra/terraform.md)を参照する。
 
 ## 監査の流れ
 
@@ -52,7 +52,7 @@ ComposeではFrontend・API・DynamoDB Localを常時起動し、Workerは必要
 | AWS Dev | AWS | AWS | Lambda | dev User Pool |
 | AWS Prod | AWS | AWS | Lambda | prod User Pool |
 
-ローカルにSQSエミュレーターは導入しない。初期Phase 1のlocalhost限定認証例外は[開発ワークフロー](development/workflow.md)に従う。
+ローカルにSQSエミュレーターは導入しない。初期Phase 1のlocalhost限定認証例外は[開発ワークフロー](dev/workflow.md)に従う。
 
 API呼び出しは常に相対パス `/api/...` を使う。ローカルはVite Proxyが `http://api:3000` に転送し、AWSはCloudFrontがFunction URLへ転送する。
 
