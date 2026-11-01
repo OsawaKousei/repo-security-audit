@@ -1,6 +1,6 @@
 import { CreateTableCommand, DescribeTableCommand, DynamoDBClient, waitUntilTableExists } from '@aws-sdk/client-dynamodb'
 import { setTimeout as delay } from 'node:timers/promises'
-import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb'
 import { AuditError, auditSchema, jobIdSchema, machineResultSchema, type Audit, type AuditStore, type MachineResult } from '@repo-sentinel/core'
 
 const key = (ownerSub: string, jobId: string) => ({ PK: `USER#${ownerSub}`, SK: `AUDIT#${jobId}` })
@@ -43,7 +43,8 @@ export async function ensureTable(client: DynamoDBClient, tableName: string) {
 
 export class DynamoAuditStore implements AuditStore {
   private db: DynamoDBDocumentClient
-  constructor(client: DynamoDBClient, private tableName: string) {
+  constructor(client: DynamoDBClient, private tableName: string,
+    private leases = { pendingMs: 180_000, runningMs: 180_000 }) {
     this.db = DynamoDBDocumentClient.from(client, { marshallOptions: { removeUndefinedValues: true } })
   }
   async create(ownerSub: string, audit: Audit) {
@@ -56,7 +57,7 @@ export class DynamoAuditStore implements AuditStore {
           ExpressionAttributeNames: { '#count': 'count' }, ExpressionAttributeValues: { ':one': 1, ':limit': 5 },
         } },
         { Put: {
-          TableName: this.tableName, Item: { ...lockKey, ownerSub, jobId: audit.jobId, leaseUntil: now + 180_000 },
+          TableName: this.tableName, Item: { ...lockKey, ownerSub, jobId: audit.jobId, leaseUntil: now + this.leases.pendingMs },
           ConditionExpression: 'attribute_not_exists(jobId)',
         } },
         { Put: {
@@ -94,21 +95,25 @@ export class DynamoAuditStore implements AuditStore {
   }
   async claim(ownerSub: string, jobId: string) {
     try {
-      const result = await this.db.send(new UpdateCommand({
+      const now = Date.now()
+      await this.db.send(new TransactWriteCommand({ TransactItems: [{ Update: {
         TableName: this.tableName, Key: key(ownerSub, jobId),
         UpdateExpression: 'SET audit.#status = :running, audit.startedAt = :now, audit.attemptCount = audit.attemptCount + :one',
         ConditionExpression: 'audit.#status = :pending',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: { ':running': 'RUNNING', ':pending': 'PENDING', ':now': new Date().toISOString(), ':one': 1 },
-        ReturnValues: 'ALL_NEW',
-      }))
-      return auditSchema.parse(result.Attributes!.audit)
+      } }, { Update: {
+        TableName: this.tableName, Key: lockKey, UpdateExpression: 'SET leaseUntil = :until',
+        ConditionExpression: 'ownerSub = :owner AND jobId = :id AND leaseUntil > :now',
+        ExpressionAttributeValues: { ':owner': ownerSub, ':id': jobId, ':now': now, ':until': now + this.leases.runningMs },
+      } }] }))
+      return this.get(ownerSub, jobId)
     } catch (error) {
-      if (isConditionalFailure(error)) return undefined
+      if (transactionConditionFailed(error)) return undefined
       throw error
     }
   }
-  async finish(ownerSub: string, audit: Audit) {
+  async finish(ownerSub: string, audit: Audit, expectedStatus?: 'PENDING' | 'RUNNING') {
     auditSchema.parse(audit)
     if (audit.status !== 'COMPLETED' && audit.status !== 'FAILED') throw new Error('Terminal state required.')
     if (Buffer.byteLength(JSON.stringify(audit)) > 350 * 1024) throw new AuditError('RESULT_TOO_LARGE', '監査結果の保存上限を超えました。', 413)
@@ -116,9 +121,10 @@ export class DynamoAuditStore implements AuditStore {
       await this.db.send(new TransactWriteCommand({ TransactItems: [
         { Update: {
           TableName: this.tableName, Key: key(ownerSub, audit.jobId), UpdateExpression: 'SET audit = :audit',
-          ConditionExpression: audit.status === 'FAILED' ? 'audit.#status IN (:running, :pending)' : 'audit.#status = :running',
+          ConditionExpression: expectedStatus ? 'audit.#status = :expected' : audit.status === 'FAILED' ? 'audit.#status IN (:running, :pending)' : 'audit.#status = :running',
           ExpressionAttributeNames: { '#status': 'status' },
-          ExpressionAttributeValues: { ':audit': audit, ':running': 'RUNNING', ...(audit.status === 'FAILED' ? { ':pending': 'PENDING' } : {}) },
+          ExpressionAttributeValues: { ':audit': audit, ...(expectedStatus ? { ':expected': expectedStatus }
+            : { ':running': 'RUNNING', ...(audit.status === 'FAILED' ? { ':pending': 'PENDING' } : {}) }) },
         } },
         { Delete: {
           TableName: this.tableName, Key: lockKey, ConditionExpression: 'jobId = :id AND ownerSub = :owner',
@@ -136,6 +142,20 @@ export class DynamoAuditStore implements AuditStore {
     const { Item } = await this.db.send(new GetCommand({ TableName: this.tableName, Key: lockKey, ConsistentRead: true }))
     return Item ? { ownerSub: Item.ownerSub as string, jobId: Item.jobId as string, leaseUntil: Item.leaseUntil as number } : undefined
   }
+  async expireStaleAudit(ownerSub: string) {
+    const active = await this.active()
+    if (!active || active.ownerSub !== ownerSub || active.leaseUntil > Date.now()) return
+    const audit = await this.get(ownerSub, active.jobId)
+    if (!audit || (audit.status !== 'PENDING' && audit.status !== 'RUNNING')) {
+      throw new AuditError('STATE_INCONSISTENT', '監査の実行状態を管理者が確認する必要があります。', 503)
+    }
+    // Never replay a RUNNING job. A lost AI response may already have been billed.
+    const errorCode = audit.aiAttemptedAt ? 'AI_OUTCOME_UNKNOWN' : 'JOB_TIMEOUT'
+    if (await this.finish(ownerSub, { ...audit, status: 'FAILED', finishedAt: new Date().toISOString(), errorCode }, audit.status)) {
+      console.log(JSON.stringify({ event: 'AuditFailed', code: errorCode }))
+      if (audit.aiAttemptedAt) console.log(JSON.stringify({ event: 'AiFailed', code: errorCode }))
+    }
+  }
   async saveMachine(ownerSub: string, jobId: string, machine: MachineResult) {
     machineResultSchema.parse(machine)
     if (Buffer.byteLength(JSON.stringify(machine)) > 250 * 1024) throw new AuditError('RESULT_TOO_LARGE', '機械監査結果が保存上限を超えました。', 413)
@@ -148,12 +168,21 @@ export class DynamoAuditStore implements AuditStore {
   }
   private async updateRunning(ownerSub: string, jobId: string, expression: string, values: Record<string, unknown>, condition = '') {
     try {
-      await this.db.send(new UpdateCommand({
+      await this.db.send(new TransactWriteCommand({ TransactItems: [{ Update: {
         TableName: this.tableName, Key: key(ownerSub, jobId), UpdateExpression: expression,
         ConditionExpression: `audit.#status = :running${condition}`,
         ExpressionAttributeNames: { '#status': 'status' }, ExpressionAttributeValues: { ...values, ':running': 'RUNNING' },
-      }))
+      } }, { ConditionCheck: {
+        TableName: this.tableName, Key: lockKey,
+        ConditionExpression: 'ownerSub = :owner AND jobId = :id AND leaseUntil > :now',
+        ExpressionAttributeValues: { ':owner': ownerSub, ':id': jobId, ':now': Date.now() },
+      } }] }))
       return true
-    } catch (error) { if (isConditionalFailure(error)) return false; throw error }
+    } catch (error) { if (transactionConditionFailed(error)) return false; throw error }
   }
+}
+
+function transactionConditionFailed(error: unknown) {
+  return isConditionalFailure(error) || (error instanceof Error && error.name === 'TransactionCanceledException' &&
+    (error as { CancellationReasons?: { Code?: string }[] }).CancellationReasons?.some((item) => item.Code === 'ConditionalCheckFailed'))
 }

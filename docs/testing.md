@@ -1,6 +1,6 @@
 # 検証計画・受け入れ条件
 
-本文は全Phaseの検証条件を管理する。Phase 1の結果は[基本検証記録](spec/phase1-verification.md)、実Worker・実AI確認は[Phase 2検証記録](spec/phase2-verification.md)、認証追加の検証は [Cognito仕様](spec/cognito-auth.md) を参照する。変更内容に応じて必要なテストを選ぶ。AWS固有の連携は実AWS devで確認する。
+本文は全Phaseの検証条件を管理する。Phase 1の結果は[基本検証記録](spec/phase1-verification.md)、実Worker・実AI確認は[Phase 2検証記録](spec/phase2-verification.md)、認証追加の検証は [Cognito仕様](spec/cognito-auth.md)、Lambda/SQSの実装・成果物検証は [AWS runtime仕様](spec/aws-runtime.md) を参照する。変更内容に応じて必要なテストを選ぶ。AWS固有の連携は実AWS devで確認する。
 
 ## 変更ごとの主な検証環境
 

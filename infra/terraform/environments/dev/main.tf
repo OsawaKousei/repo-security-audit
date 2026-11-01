@@ -29,32 +29,55 @@ resource "aws_secretsmanager_secret" "openai" {
 }
 
 module "api" {
-  source             = "../../modules/api"
-  enabled            = var.enable_runtime
-  name               = "${local.name}-api"
-  artifact_path      = var.api_artifact_path
-  jobs_table_name    = module.database.name
-  jobs_table_arn     = module.database.arn
-  queue_url          = module.queue.url
-  queue_arn          = module.queue.arn
-  cognito_issuer     = module.auth.issuer
-  cognito_client_id  = module.auth.client_id
-  allowed_user_sub   = var.allowed_user_sub
-  log_retention_days = var.log_retention_days
+  source                      = "../../modules/api"
+  enabled                     = var.enable_runtime
+  name                        = "${local.name}-api"
+  artifact_path               = var.api_artifact_path
+  jobs_table_name             = module.database.name
+  jobs_table_arn              = module.database.arn
+  queue_url                   = module.queue.url
+  queue_arn                   = module.queue.arn
+  cognito_issuer              = module.auth.issuer
+  cognito_client_id           = module.auth.client_id
+  allowed_user_sub            = var.allowed_user_sub
+  aws_account_id              = var.aws_account_id
+  aws_region                  = var.aws_region
+  resource_prefix             = local.name
+  ai_mode                     = var.ai_mode
+  reserved_concurrency        = var.lambda_reserved_concurrency
+  openai_hard_limit_confirmed = var.openai_hard_limit_confirmed
+  log_retention_days          = var.log_retention_days
+}
+
+resource "aws_lambda_layer_version" "npm" {
+  count                    = var.enable_runtime && var.worker_npm_layer_path != null ? 1 : 0
+  layer_name               = "${local.name}-npm"
+  description              = "Pinned npm for audit-only execution; built from the workspace lockfile"
+  filename                 = var.worker_npm_layer_path
+  source_code_hash         = filebase64sha256(var.worker_npm_layer_path)
+  compatible_runtimes      = ["nodejs24.x"]
+  compatible_architectures = ["x86_64"]
 }
 
 module "worker" {
-  source             = "../../modules/worker"
-  enabled            = var.enable_runtime
-  name               = "${local.name}-worker"
-  artifact_path      = var.worker_artifact_path
-  npm_layer_arn      = var.worker_npm_layer_arn
-  jobs_table_name    = module.database.name
-  jobs_table_arn     = module.database.arn
-  queue_arn          = module.queue.arn
-  openai_secret_arn  = aws_secretsmanager_secret.openai.arn
-  allowed_user_sub   = var.allowed_user_sub
-  log_retention_days = var.log_retention_days
+  source                      = "../../modules/worker"
+  enabled                     = var.enable_runtime
+  name                        = "${local.name}-worker"
+  artifact_path               = var.worker_artifact_path
+  npm_layer_arn               = var.worker_npm_layer_path != null ? one(aws_lambda_layer_version.npm[*].arn) : var.worker_npm_layer_arn
+  jobs_table_name             = module.database.name
+  jobs_table_arn              = module.database.arn
+  queue_arn                   = module.queue.arn
+  openai_secret_arn           = aws_secretsmanager_secret.openai.arn
+  allowed_user_sub            = var.allowed_user_sub
+  aws_account_id              = var.aws_account_id
+  aws_region                  = var.aws_region
+  resource_prefix             = local.name
+  queue_url                   = module.queue.url
+  ai_mode                     = var.ai_mode
+  reserved_concurrency        = var.lambda_reserved_concurrency
+  openai_hard_limit_confirmed = var.openai_hard_limit_confirmed
+  log_retention_days          = var.log_retention_days
 }
 
 module "frontend" {

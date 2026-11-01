@@ -1,9 +1,9 @@
 resource "aws_sns_topic" "operations" {
-  count = var.budget_email != null ? 1 : 0
+  count = var.alarm_email != null ? 1 : 0
   name  = "${local.name}-operations"
 }
 resource "aws_sns_topic_policy" "operations" {
-  count = var.budget_email != null ? 1 : 0
+  count = var.alarm_email != null ? 1 : 0
   arn   = aws_sns_topic.operations[0].arn
   policy = jsonencode({
     Version = "2012-10-17"
@@ -19,10 +19,10 @@ resource "aws_sns_topic_policy" "operations" {
   })
 }
 resource "aws_sns_topic_subscription" "operations" {
-  count     = var.budget_email != null ? 1 : 0
+  count     = var.alarm_email != null ? 1 : 0
   topic_arn = aws_sns_topic.operations[0].arn
   protocol  = "email"
-  endpoint  = var.budget_email
+  endpoint  = var.alarm_email
 }
 
 locals {
@@ -110,4 +110,40 @@ resource "aws_budgets_budget" "monthly" {
       subscriber_email_addresses = [var.budget_email]
     }
   }
+}
+
+locals {
+  app_metrics = var.enable_runtime ? {
+    api        = { event = "ApiFailed", group = module.api.log_group_name }
+    api_audit  = { event = "AuditFailed", group = module.api.log_group_name }
+    api_ai     = { event = "AiFailed", group = module.api.log_group_name }
+    audit      = { event = "AuditFailed", group = module.worker.log_group_name }
+    ai         = { event = "AiFailed", group = module.worker.log_group_name }
+    sqs_record = { event = "WorkerRecordFailed", group = module.worker.log_group_name }
+  } : {}
+}
+resource "aws_cloudwatch_log_metric_filter" "application" {
+  for_each       = local.app_metrics
+  name           = "${local.name}-${each.key}"
+  log_group_name = each.value.group
+  pattern        = "{ $.event = \"${each.value.event}\" }"
+  metric_transformation {
+    name      = each.value.event
+    namespace = "RepoSentinel/${local.name}"
+    value     = "1"
+  }
+}
+resource "aws_cloudwatch_metric_alarm" "application" {
+  for_each            = toset([for metric in values(local.app_metrics) : metric.event])
+  alarm_name          = "${local.name}-${each.key}-failures"
+  namespace           = "RepoSentinel/${local.name}"
+  metric_name         = each.value
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
 }

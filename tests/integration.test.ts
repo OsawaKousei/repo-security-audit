@@ -5,16 +5,19 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DeleteTableCommand } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import type { SQSClient } from '@aws-sdk/client-sqs'
 import { monotonicFactory } from 'ulid'
 import { AuditError, auditSchema, type Audit } from '@repo-sentinel/core'
-import { DynamoAuditStore, dynamoClient, ensureTable, localConfig } from '@repo-sentinel/aws'
+import { DynamoAuditStore, createAuditEnqueuer, createDynamoAiBudget, dynamoClient, ensureTable, localConfig } from '@repo-sentinel/aws'
 import { createAuditRunner, createMockRunner, failAudit, startMockDispatcher } from '../workers/security-audit/app/src/audit.js'
 import { mockResult } from '../workers/security-audit/app/src/mock.js'
 import { createApp } from '../api/app/src/app.js'
 import { machine, manifest, lockfile, aiOutput } from './fixtures/worker.js'
 import { validateAiReport } from '../workers/security-audit/app/src/ai-report.js'
 import { signedTestToken, testCognitoAuthorizer, testSub } from './fixtures/cognito.js'
+import { AWS_LEASE } from '@repo-sentinel/core'
+import { createSqsHandler } from '../workers/security-audit/app/src/sqs-handler.js'
 
 const config = localConfig()
 const table = `security-audit-test-${randomUUID()}-local`
@@ -274,4 +277,110 @@ test('CLI recovery of expired real execution preserves the AI marker without cal
   if (failed?.status === 'FAILED') { assert.equal(failed.errorCode, 'JOB_TIMEOUT'); assert.ok(failed.aiAttemptedAt); assert.ok(failed.machine) }
   assert.equal(calls, 0)
   assert.equal(await store.active(), undefined)
+})
+
+const queueArn = 'arn:aws:sqs:ap-northeast-1:103492189525:repo-sentinel-dev-audits'
+const cloudStore = new DynamoAuditStore(client, table, AWS_LEASE)
+const db = DynamoDBDocumentClient.from(client)
+const sqsRecord = (body: string, messageId = randomUUID()) => ({ body, messageId, eventSource: 'aws:sqs', eventSourceARN: queueArn })
+test('authenticated API → versioned SQS message → shared Worker → persisted history; replay executes once', async () => {
+  let message = ''
+  const enqueue = createAuditEnqueuer({ send: async (command: { input: { MessageBody: string } }) => { message = command.input.MessageBody } } as unknown as SQSClient, 'test-queue-url')
+  const api = createApp({ store: cloudStore, authorize: testCognitoAuthorizer(), enqueue, mode: 'audit', aiMode: 'mock', execution: 'sqs' })
+  const response = await api.request('/api/audits', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': signedTestToken() },
+    body: JSON.stringify({ repositoryUrl: 'https://github.com/example/project' }) })
+  assert.equal(response.status, 202)
+  const { jobId } = await response.json()
+  assert.deepEqual(JSON.parse(message), { version: 1, jobId, ownerSub: testSub })
+  const runner = createAuditRunner(cloudStore, machineOptions())
+  let runs = 0
+  const handler = createSqsHandler({ store: cloudStore, queueArn, ownerSub: testSub, aiMode: 'mock', log: () => {},
+    runAudit: async (id, owner) => { runs++; await runner(id, owner) } })
+  assert.deepEqual(await handler({ Records: [sqsRecord(message), sqsRecord(message)] }), { batchItemFailures: [] })
+  assert.equal(runs, 1)
+  assert.equal((await cloudStore.get(testSub, jobId))?.status, 'COMPLETED')
+  assert.equal((await cloudStore.list(testSub, 20)).items.some((item) => item.jobId === jobId), true)
+})
+test('dispatch compensation cannot overwrite a concurrently claimed RUNNING job', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'mock' }
+  await cloudStore.create(testSub, audit)
+  await cloudStore.claim(testSub, audit.jobId)
+  assert.equal(await cloudStore.finish(testSub, { ...audit, status: 'FAILED', finishedAt: new Date().toISOString(), errorCode: 'DISPATCH_FAILED' }, 'PENDING'), false)
+  assert.equal((await cloudStore.get(testSub, audit.jobId))?.status, 'RUNNING')
+  await failAudit(cloudStore, testSub, audit.jobId, 'WORKER_FAILED')
+})
+test('AWS claim replaces the pending lease with a bounded execution lease; expired workers cannot write AI markers', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'mock' }
+  await cloudStore.create(testSub, audit)
+  assert.ok((await cloudStore.active())!.leaseUntil > Date.now() + 800_000)
+  assert.ok(await cloudStore.claim(testSub, audit.jobId))
+  assert.ok((await cloudStore.active())!.leaseUntil < Date.now() + 211_000)
+  await db.send(new UpdateCommand({ TableName: table, Key: { PK: 'SYSTEM', SK: 'ACTIVE_AUDIT' }, UpdateExpression: 'SET leaseUntil = :zero', ExpressionAttributeValues: { ':zero': 0 } }))
+  assert.equal(await cloudStore.beginAi(testSub, audit.jobId, 'test-model', new Date().toISOString()), false)
+  assert.equal(await cloudStore.saveMachine(testSub, audit.jobId, machine), false)
+  await cloudStore.expireStaleAudit(testSub)
+  const failed = await cloudStore.get(testSub, audit.jobId)
+  assert.equal(failed?.status === 'FAILED' && failed.errorCode, 'JOB_TIMEOUT')
+  assert.equal(await cloudStore.claim(testSub, audit.jobId), undefined)
+})
+test('DynamoDB AI reservations are atomic and permanent across concurrent attempts', async () => {
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await cloudStore.create(testSub, audit); await cloudStore.claim(testSub, audit.jobId)
+  await cloudStore.beginAi(testSub, audit.jobId, 'test-model', new Date().toISOString())
+  const reserve = createDynamoAiBudget(client, table)
+  const results = await Promise.allSettled(Array.from({ length: 8 }, () => reserve(testSub, audit.jobId)))
+  assert.equal(results.filter((item) => item.status === 'fulfilled').length, 1)
+  const daily = await db.send(new GetCommand({ TableName: table, Key: { PK: 'AI_BUDGET', SK: `DAY#${new Date().toISOString().slice(0, 10)}` } }))
+  const monthly = await db.send(new GetCommand({ TableName: table, Key: { PK: 'AI_BUDGET', SK: `MONTH#${new Date().toISOString().slice(0, 7)}` } }))
+  assert.equal(daily.Item?.calls, 1); assert.equal(monthly.Item?.microUsd, 50_000)
+  await assert.rejects(reserve(testSub, audit.jobId), (error) => error instanceof AuditError && error.code === 'AI_ALREADY_ATTEMPTED')
+  await failAudit(cloudStore, testSub, audit.jobId, 'AI_OUTCOME_UNKNOWN')
+  const receipt = await db.send(new GetCommand({ TableName: table, Key: { PK: `USER#${testSub}`, SK: `AI_RESERVATION#${audit.jobId}` } }))
+  assert.equal(receipt.Item?.microUsd, 50_000)
+})
+test('SQS replay after an uncertain AI call never repeats the paid request', async () => {
+  const ownerSub = randomUUID()
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await cloudStore.create(ownerSub, audit)
+  let calls = 0
+  const runAudit = createAuditRunner(cloudStore, { ...machineOptions(), openaiKey: 'test-key', hardLimitConfirmed: true,
+    reserveBudget: createDynamoAiBudget(client, table), aiReport: async () => { calls++; throw new AuditError('AI_OUTCOME_UNKNOWN', 'unknown', 503) } })
+  const handler = createSqsHandler({ store: cloudStore, queueArn, ownerSub: ownerSub, aiMode: 'openai', runAudit, log: () => {} })
+  const event = { Records: [sqsRecord(JSON.stringify({ version: 1, jobId: audit.jobId, ownerSub: ownerSub }))] }
+  assert.deepEqual(await handler(event), { batchItemFailures: [] })
+  assert.deepEqual(await handler(event), { batchItemFailures: [] })
+  assert.equal(calls, 1)
+  assert.equal((await cloudStore.get(ownerSub, audit.jobId))?.status, 'FAILED')
+})
+test('API recovery marks an expired AI attempt unknown, releasing the slot without replay', async () => {
+  const ownerSub = randomUUID()
+  const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+  await cloudStore.create(ownerSub, audit); await cloudStore.claim(ownerSub, audit.jobId)
+  await cloudStore.saveMachine(ownerSub, audit.jobId, machine)
+  await cloudStore.beginAi(ownerSub, audit.jobId, 'test-model', new Date().toISOString())
+  await db.send(new UpdateCommand({ TableName: table, Key: { PK: 'SYSTEM', SK: 'ACTIVE_AUDIT' }, UpdateExpression: 'SET leaseUntil = :zero', ExpressionAttributeValues: { ':zero': 0 } }))
+  await cloudStore.expireStaleAudit(ownerSub)
+  const failed = await cloudStore.get(ownerSub, audit.jobId)
+  assert.equal(failed?.status === 'FAILED' && failed.errorCode, 'AI_OUTCOME_UNKNOWN')
+  assert.ok(failed && 'machine' in failed && failed.machine)
+  assert.equal(await cloudStore.active(), undefined)
+})
+test('AWS daily and monthly budget exhaustion prevents the AI request with no partial reservation', async () => {
+  const ownerSub = randomUUID()
+  const at = new Date().toISOString()
+  const reserve = createDynamoAiBudget(client, table)
+  for (const [daily, monthly] of [[5, 100_000], [0, 10_000_000]]) {
+    await db.send(new UpdateCommand({ TableName: table, Key: { PK: 'AI_BUDGET', SK: `DAY#${at.slice(0, 10)}` }, UpdateExpression: 'SET calls = :v', ExpressionAttributeValues: { ':v': daily } }))
+    await db.send(new UpdateCommand({ TableName: table, Key: { PK: 'AI_BUDGET', SK: `MONTH#${at.slice(0, 7)}` }, UpdateExpression: 'SET microUsd = :v', ExpressionAttributeValues: { ':v': monthly } }))
+    const audit: Audit = { ...pending(), mode: 'audit', aiMode: 'openai' }
+    await cloudStore.create(ownerSub, audit)
+    let calls = 0
+    await createAuditRunner(cloudStore, { ...machineOptions(), openaiKey: 'test-key', hardLimitConfirmed: true, reserveBudget: reserve,
+      aiReport: async () => { calls++; return validateAiReport(aiOutput, machine) } })(audit.jobId, ownerSub)
+    const failed = await cloudStore.get(ownerSub, audit.jobId)
+    assert.equal(failed?.status === 'FAILED' && failed.errorCode, 'AI_BUDGET_LIMIT')
+    assert.equal(calls, 0)
+    const receipt = await db.send(new GetCommand({ TableName: table, Key: { PK: `USER#${ownerSub}`, SK: `AI_RESERVATION#${audit.jobId}` } }))
+    assert.equal(receipt.Item, undefined)
+  }
 })

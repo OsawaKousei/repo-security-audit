@@ -59,11 +59,12 @@ export function startMockDispatcher(store: AuditStore, runAudit: (jobId: string,
 }
 
 type AuditRunnerOptions = {
-  githubToken?: string; openaiKey?: string; hardLimitConfirmed?: boolean; budgetDirectory: string
+  githubToken?: string; openaiKey?: string; getOpenaiKey?: () => Promise<string>; hardLimitConfirmed?: boolean; budgetDirectory?: string
+  remainingTimeMs?: () => number
   fetchFiles?: typeof fetchRepository
   npmAudit?: typeof runNpmAudit
   aiReport?: typeof requestAiReport
-  reserveBudget?: typeof reserveAiBudget
+  reserveBudget?: (ownerSub: string, jobId: string) => Promise<void>
 }
 export function createAuditRunner(store: AuditStore, options: AuditRunnerOptions) {
   return async function runAudit(jobId: string, ownerSub: string): Promise<void> {
@@ -76,7 +77,7 @@ export function createAuditRunner(store: AuditStore, options: AuditRunnerOptions
     if (current.status !== 'PENDING') return
     const audit = await store.claim(ownerSub, jobId)
     if (!audit || audit.status !== 'RUNNING') return
-    const signal = AbortSignal.timeout(Math.min(170_000, remaining))
+    const signal = AbortSignal.timeout(Math.max(1, Math.min(170_000, remaining, (options.remainingTimeMs?.() ?? 180_000) - 10_000)))
     try {
       const files = await (options.fetchFiles ?? fetchRepository)(audit.repository, signal, { token: options.githubToken })
       const result = await (options.npmAudit ?? runNpmAudit)(files.packageJson, files.packageLock, signal)
@@ -86,14 +87,17 @@ export function createAuditRunner(store: AuditStore, options: AuditRunnerOptions
       let report
       let aiAttemptedAt: string | undefined
       if (audit.aiMode === 'openai') {
-        if (!options.openaiKey || !options.hardLimitConfirmed) throw new AuditError('AI_NOT_CONFIGURED', 'API鍵と専用Projectの費用制限確認が必要です。', 503)
+        if ((!options.openaiKey && !options.getOpenaiKey) || !options.hardLimitConfirmed) throw new AuditError('AI_NOT_CONFIGURED', 'API鍵と専用Projectの費用制限確認が必要です。', 503)
+        const openaiKey = options.getOpenaiKey ? await options.getOpenaiKey() : options.openaiKey!
         const body = prepareAiRequest(audit.repository, new Date().toISOString(), machine)
         signal.throwIfAborted()
         aiAttemptedAt = new Date().toISOString()
         if (!await store.beginAi(ownerSub, jobId, AI_MODEL, aiAttemptedAt)) return
-        await (options.reserveBudget ?? reserveAiBudget)(options.budgetDirectory, ownerSub, jobId)
+        if (options.reserveBudget) await options.reserveBudget(ownerSub, jobId)
+        else if (options.budgetDirectory) await reserveAiBudget(options.budgetDirectory, ownerSub, jobId)
+        else throw new AuditError('AI_BUDGET_UNAVAILABLE', 'AI予算台帳が設定されていません。', 503)
         signal.throwIfAborted()
-        report = await (options.aiReport ?? requestAiReport)(body, machine, options.openaiKey, signal)
+        report = await (options.aiReport ?? requestAiReport)(body, machine, openaiKey, signal)
       } else report = machineMockReport(machine)
       signal.throwIfAborted()
       await store.finish(ownerSub, {

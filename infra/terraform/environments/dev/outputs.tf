@@ -11,3 +11,7 @@ output "dynamodb_table_name" { value = module.database.name }
 output "audit_queue_url" { value = module.queue.url }
 output "openai_secret_arn" { value = aws_secretsmanager_secret.openai.arn }
 output "runtime_enabled" { value = var.enable_runtime }
+output "api_function_name" { value = module.api.function_name }
+output "worker_function_name" { value = module.worker.function_name }
+output "api_function_url" { value = module.api.function_url }
+output "worker_npm_layer_arn" { value = var.worker_npm_layer_path != null ? one(aws_lambda_layer_version.npm[*].arn) : var.worker_npm_layer_arn }

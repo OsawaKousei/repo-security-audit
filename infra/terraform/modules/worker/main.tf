@@ -13,6 +13,13 @@ variable "queue_arn" { type = string }
 variable "openai_secret_arn" { type = string }
 variable "allowed_user_sub" { type = string }
 variable "log_retention_days" { type = number }
+variable "aws_account_id" { type = string }
+variable "aws_region" { type = string }
+variable "resource_prefix" { type = string }
+variable "queue_url" { type = string }
+variable "ai_mode" { type = string }
+variable "reserved_concurrency" { type = number }
+variable "openai_hard_limit_confirmed" { type = bool }
 
 resource "aws_cloudwatch_log_group" "this" {
   count             = var.enabled ? 1 : 0
@@ -40,6 +47,9 @@ resource "aws_iam_role_policy" "this" {
         Sid      = "JobStorage", Effect = "Allow"
         Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem"]
         Resource = var.jobs_table_arn
+        Condition = { "ForAllValues:StringEquals" = {
+          "dynamodb:LeadingKeys" = ["USER#${var.allowed_user_sub}", "SYSTEM", "AI_BUDGET"]
+        } }
       },
       {
         Sid      = "ConsumeAudit", Effect = "Allow"
@@ -68,22 +78,26 @@ resource "aws_lambda_function" "this" {
   layers                         = [var.npm_layer_arn]
   memory_size                    = 1024
   timeout                        = 180
-  reserved_concurrent_executions = 2
+  reserved_concurrent_executions = var.reserved_concurrency
   ephemeral_storage {
     size = 512
   }
   environment {
     variables = {
-      NODE_ENV          = "production"
-      APP_ENV           = "dev"
-      DYNAMODB_TABLE    = var.jobs_table_name
-      OPENAI_SECRET_ARN = var.openai_secret_arn
-      ALLOWED_USER_SUB  = var.allowed_user_sub
-      AUDIT_MODE        = "audit"
-      AI_MODE           = "openai"
-      NPM_CLI_PATH      = "/opt/nodejs/node_modules/npm/bin/npm-cli.js"
-      AUDIT_DAILY_LIMIT = "5"
-      AUDIT_CONCURRENCY = "1"
+      NODE_ENV                    = "production"
+      APP_ENV                     = "dev"
+      DYNAMODB_TABLE              = var.jobs_table_name
+      OPENAI_SECRET_ARN           = var.openai_secret_arn
+      ALLOWED_USER_SUB            = var.allowed_user_sub
+      AUDIT_MODE                  = "audit"
+      AI_MODE                     = var.ai_mode
+      OPENAI_HARD_LIMIT_CONFIRMED = tostring(var.openai_hard_limit_confirmed)
+      AWS_ACCOUNT_ID              = var.aws_account_id
+      RESOURCE_PREFIX             = var.resource_prefix
+      AUDIT_QUEUE_URL             = var.queue_url
+      NPM_CLI_PATH                = "/opt/nodejs/node_modules/npm/bin/npm-cli.js"
+      AUDIT_DAILY_LIMIT           = "5"
+      AUDIT_CONCURRENCY           = "1"
     }
   }
   depends_on = [aws_iam_role_policy.this]
@@ -101,3 +115,4 @@ resource "aws_lambda_event_source_mapping" "this" {
   depends_on = [aws_iam_role_policy.this]
 }
 output "function_name" { value = one(aws_lambda_function.this[*].function_name) }
+output "log_group_name" { value = one(aws_cloudwatch_log_group.this[*].name) }

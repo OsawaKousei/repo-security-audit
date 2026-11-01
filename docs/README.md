@@ -7,7 +7,7 @@
 | 配置先 | 記載する内容 | 現在の状態 |
 |---|---|---|
 | [実装計画](plan/implementation-plan.md) | 未実装の機能要件・関連文書への案内 | Phase 1–3反映済み範囲と後続Phaseの要件 |
-| [確定仕様](spec/README.md) | 実装・検証済みの実際の動作・契約・制約 | ローカル基本/Worker/Cognito仕様・検証記録 |
+| [確定仕様](spec/README.md) | 実装・検証済みの実際の動作・契約・制約 | ローカル基本/Worker/Cognito/AWS runtime仕様・検証記録 |
 | [未確定事項](decisions.md) | 計画を実装する前に決める値・方式 | IDごとに管理 |
 
 実装計画の採用方針やサンプルを、実装済みの仕様として扱わない。実装・検証が完了した範囲を `docs/spec/` に記載し、計画にも反映済み範囲を記録する。
@@ -33,4 +33,4 @@
 
 ユーザーの明示的な変更指示を優先する。リポジトリ構成は現行の `frontend/app`・`api/app`・`workers/security-audit/app` と `docker-compose.yaml` を正とする。
 
-`docs/plan/` の実装計画はGit管理対象とする。2026-11-01にPhase 1–2のローカル基本実装・実Workerを追加した。起動は[ルートREADME](../README.md)、実際の契約と検証根拠は[確定仕様](spec/README.md)を参照する。Terraformは[dev向け定義](../infra/terraform/README.md)を固定devドメイン構成に設定し、validate・テスト・Planまで確認済み。基盤は21リソースを部分適用済みで、CloudFront修正後の再apply用Planは4件追加。利用者が初期ユーザーを作成済み。React/HonoのCognito認証を実装・検証し、本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。SQSアプリ連携・AWS統合は後続作業。
+`docs/plan/` の実装計画はGit管理対象とする。2026-11-01にPhase 1–2のローカル基本実装・実Workerを追加した。起動は[ルートREADME](../README.md)、実際の契約と検証根拠は[確定仕様](spec/README.md)を参照する。Terraformは[dev向け定義](../infra/terraform/README.md)を固定devドメイン構成に設定し、validate・テスト・Planまで確認済み。基盤は21リソースを部分適用済みで、CloudFront修正後の再apply用Planは4件追加。利用者が初期ユーザーを作成済み。React/HonoのCognito認証を実装・検証し、本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。Phase 4のLambda・SQS・Secret取得・DynamoDB予算予約を実装し、クリーン成果物・公式Lambdaコンテナ・apply前Planまで検証した。その後、利用者がdevへapplyし、Frontend配布と公開HTTP/認証経路を確認した。本人による監査フローと実Secret・実AI等は確認中。最新の根拠は [AWS検証記録](spec/phase4-verification.md) を参照する。

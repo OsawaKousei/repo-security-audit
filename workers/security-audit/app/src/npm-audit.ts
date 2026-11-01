@@ -118,7 +118,8 @@ export async function runNpmAudit(packageJson: string, packageLock: string, sign
     ])
     signal.throwIfAborted()
     const stdout = await new Promise<string>((resolve, reject) => {
-      execFile(join(dirname(process.execPath), 'npm'), [
+      const command = npmCommand()
+      execFile(command.file, [...command.args,
         'audit', '--json', '--package-lock-only', '--ignore-scripts', '--registry=https://registry.npmjs.org',
         '--fetch-retries=0', '--fetch-timeout=20000', '--no-fund', '--workspaces=false',
       ], {
@@ -139,4 +140,15 @@ export async function runNpmAudit(packageJson: string, packageLock: string, sign
     try { json = JSON.parse(stdout) } catch { throw new AuditError('NPM_INVALID_OUTPUT', 'npm auditが有効なJSONを返しませんでした。', 503) }
     return normalizeAudit(json)
   } finally { await rm(directory, { recursive: true, force: true }) }
+}
+
+export function npmCommand(env = process.env) {
+  if (env.NPM_CLI_PATH) {
+    if (env.NPM_CLI_PATH !== '/opt/nodejs/node_modules/npm/bin/npm-cli.js' || env.NODE_ENV !== 'production' || env.APP_ENV !== 'dev') {
+      throw new AuditError('NPM_FAILED', 'AWS用npm実行パスが不正です。', 503)
+    }
+    return { file: process.execPath, args: [env.NPM_CLI_PATH] }
+  }
+  if (env.AWS_LAMBDA_FUNCTION_NAME) throw new AuditError('NPM_FAILED', 'AWS用npm Layerが設定されていません。', 503)
+  return { file: join(dirname(process.execPath), 'npm'), args: [] }
 }

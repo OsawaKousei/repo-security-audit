@@ -2,7 +2,7 @@
 
 本書は認証・外部入力・秘密情報・費用制限の基準を定める。ローカル開発環境の変更によってこれらの要件を緩和しない。
 
-Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。Phase 2の外部入力・秘密情報・実AI・永続費用台帳は[Worker仕様](spec/local-worker.md)に実装済みの境界を記録した。ローカルCognito認証は [Phase 3仕様](spec/cognito-auth.md) に実装済みの範囲と検証限界を記録した。AWSアプリ統合は後続Phase。
+Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。Phase 2の外部入力・秘密情報・実AI・永続費用台帳は[Worker仕様](spec/local-worker.md)に実装済みの境界を記録した。ローカルCognito認証は [Phase 3仕様](spec/cognito-auth.md) に実装済みの範囲と検証限界を記録した。AWS向けの接続・分散制御の実装は [AWS runtime仕様](spec/aws-runtime.md) を参照する。実AWSの反映・疎通は未実施。
 
 ## Cognito認証とユーザー認可
 
@@ -74,7 +74,7 @@ CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` �
 
 OpenAI API失敗時に無制限に再試行しない。AI呼び出し後の成否が不確実な失敗は自動再実行を抑制する。[データ設計](plan/implementation-plan.md#data-model)の冪等性と合わせて実装する。
 
-AWS Budgetsも設定するが、請求アラートだけを費用制限手段にしない。
+AWS Budgetsは必要に応じて設定する通知であり、Lambdaの利用やruntime有効化の必須条件にしない。アプリの費用制限・OpenAIの支出制限は独立して維持する。
 
 ## 秘密情報とIAM
 

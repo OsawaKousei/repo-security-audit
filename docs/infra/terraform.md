@@ -8,9 +8,9 @@ AWSリソースはTerraformで管理する。ローカル開発環境の変更�
 
 2026-11-01：利用者指定により、参照元と同じ `kupacllc`・東京リージョン・既存Stateバケットを使用する。devは `repo-sentinel-dev.prj.kupac.co.jp` を使い、既存DNSゾーンにA/AAAA Aliasを作成する。指定済みのus-east-1ワイルドカードACM証明書を参照し、TLSポリシーは `TLSv1.2_2021` とする。`repo-sentinel.prj.kupac.co.jp` は将来の本番環境向けに予約する。
 
-dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。その後、利用者がinitを実行し、固定devドメイン構成でvalidate・モックテスト・Planを確認した。利用者のapplyは21リソース作成後にCloudFrontのOrigin Request Policyエラーで中断した。定義を修正し、4件追加・変更／削除0件の再apply用Planを保存済み。再applyは未実行。
+dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。その後、利用者がinitを実行し、固定devドメイン構成でvalidate・モックテスト・Planを確認した。利用者のapplyは21リソース作成後にCloudFrontのOrigin Request Policyエラーで中断した。定義を修正し、4件追加・変更／削除0件の再apply用Planを保存済み。上記は準備時点の記録。Phase 4の読み取りでは基盤のmanagedリソース25件を確認した。最新のruntime有効化Planは27件追加・1件更新・削除0件で、その後、利用者がruntimeをapplyした。Frontend配布後のPlanは差分なし。最新の根拠は [AWS検証記録](../spec/phase4-verification.md) を参照する。
 
-初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。CognitoのCallback／Logoutには初回からdev用HTTPS URLとlocalhostを登録し、生成URLの転記は行わない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。初期ユーザーは `node scripts/create-dev-user.ts` の読取既定・明示作成の手順で準備する。具体的な切替条件・確認結果は上記READMEを参照する。
+初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。CognitoのCallback／Logoutには初回からdev用HTTPS URLとlocalhostを登録し、生成URLの転記は行わない。Phase 4の有効化にはZIP・npm Layer・許可subが必要。AWS予算通知は任意。Lambda/SQSと成果物作成は実装済みで、今回のapply前Plan・アカウントQuotaへの対応・反映手順は [AWS配布](../dev/aws-deployment.md) を参照する。初期ユーザーは `node scripts/create-dev-user.ts` の読取既定・明示作成の手順で準備する。具体的な切替条件・確認結果は上記READMEを参照する。
 
 ## 管理対象
 
@@ -55,7 +55,7 @@ S3 Backendを使用する。
 - Stateアクセスを管理用IAMへ限定する。
 - DynamoDBによるTerraform Stateロックは使わない。
 
-TerraformはSecrets ManagerのSecretリソースを管理するが、OpenAI APIキー値をStateへ入れない。値の注入・更新手順は[未確定事項](../decisions.md)を解消して定義する。
+TerraformはSecrets ManagerのSecretリソースを管理するが、OpenAI APIキー値をStateへ入れない。値の注入・更新は [AWS配布](../dev/aws-deployment.md#実aiを有効にする場合) の読取既定スクリプトで行い、書き込みには明示確認を伴う。
 
 Terraform・Providerバージョンとロック対応を確定し、検証・Planをホストで実行する。`apply` / `destroy` などの確認は[開発ワークフロー](../dev/workflow.md)に従う。
 
@@ -71,7 +71,7 @@ Terraform・Providerバージョンとロック対応を確定し、検証・Pla
 
 本番向けビルドはクリーン環境で `npm ci` を行う。ホストの `node_modules` をコピー・流用せず、対象Lambdaランタイムに適合する依存関係・成果物を生成する。
 
-具体的なビルドスクリプト、Lambdaへのnpm実行環境の同梱、デプロイ手段は[未確定事項](../decisions.md)で確定する。
+具体的なビルド・npm Layer・配布スクリプトは [AWS配布](../dev/aws-deployment.md)、実装契約と検証結果は [AWS runtime仕様](../spec/aws-runtime.md) に記録した。
 
 ## 監視・運用
 
@@ -84,7 +84,7 @@ CloudWatchの監視対象：
 - ジョブの異常終了。
 - OpenAI APIエラー。
 
-AWS Budgetsを設定し、アプリケーションの利用制限と併用する。アラートだけに費用制限を依存させない。ログに秘密情報・認証情報・不要なリポジトリ内容を残さない。
+AWS Budgetsは任意の通知として、必要に応じてアプリケーションの利用制限と併用する。アラートだけに費用制限を依存させない。ログに秘密情報・認証情報・不要なリポジトリ内容を残さない。
 
 障害時はジョブ状態、リース、SQS/DLQ、Workerログを照合する。AI呼び出し後の不確実な失敗は自動再実行を抑制する。DLQの再投入やリース切れジョブの復旧手順は未確定であり、単純な再投入を標準手順としない。
 

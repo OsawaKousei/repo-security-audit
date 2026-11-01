@@ -88,10 +88,41 @@ variable "enable_runtime" {
     condition = !var.enable_runtime || (
       can(filebase64sha256(var.api_artifact_path)) &&
       can(filebase64sha256(var.worker_artifact_path)) &&
-      var.worker_npm_layer_arn != null && var.allowed_user_sub != null &&
-      var.budget_monthly_usd != null && var.budget_email != null
+      (var.worker_npm_layer_arn != null || can(filebase64sha256(var.worker_npm_layer_path))) && var.allowed_user_sub != null
     )
-    error_message = "Runtime requires both Lambda ZIP artifacts, a Node.js 24 npm layer, the allowed Cognito sub, and an AWS budget amount/email."
+    error_message = "Runtime requires both Lambda ZIP artifacts, a Node.js 24 npm layer, and the allowed Cognito sub. AWS budget notifications are optional."
+  }
+}
+variable "worker_npm_layer_path" {
+  description = "Clean-built npm layer ZIP; Terraform publishes a version when runtime is enabled. Mutually exclusive with an existing ARN."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.worker_npm_layer_path == null || var.worker_npm_layer_arn == null
+    error_message = "Specify an npm layer ZIP or an existing version ARN, not both."
+  }
+}
+variable "ai_mode" {
+  description = "Start with mock AI for AWS integration; openai requires explicit hard-limit confirmation and an injected dev secret."
+  type        = string
+  default     = "mock"
+  validation {
+    condition     = contains(["mock", "openai"], var.ai_mode) && (var.ai_mode != "openai" || var.openai_hard_limit_confirmed)
+    error_message = "Use mock or openai; openai requires openai_hard_limit_confirmed=true."
+  }
+}
+variable "openai_hard_limit_confirmed" {
+  description = "Operator confirmation that the dedicated dev OpenAI Project has a $10 hard spend limit."
+  type        = bool
+  default     = false
+}
+variable "lambda_reserved_concurrency" {
+  description = "2 reserves/caps each function when the account quota permits; -1 uses the unreserved pool for low-quota dev accounts. SQS still caps Worker deliveries at 2."
+  type        = number
+  default     = 2
+  validation {
+    condition     = contains([-1, 2], var.lambda_reserved_concurrency)
+    error_message = "Use 2 with sufficient account quota, or -1 for unreserved dev execution."
   }
 }
 
@@ -144,11 +175,20 @@ variable "budget_monthly_usd" {
   }
 }
 variable "budget_email" {
-  description = "Optional AWS budget/SNS alarm destination; no notification is sent by Terraform preparation."
+  description = "Optional AWS Budgets direct email destination. Monitoring/email notifications are free; this does not enable SNS."
   type        = string
   default     = null
   validation {
     condition     = var.budget_email == null ? true : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.budget_email))
     error_message = "Supply a valid notification email."
+  }
+}
+variable "alarm_email" {
+  description = "Separate optional SNS destination for CloudWatch operational alarms; SNS pricing/free-tier applies."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.alarm_email == null ? true : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alarm_email))
+    error_message = "Supply a valid operational-alarm notification email."
   }
 }

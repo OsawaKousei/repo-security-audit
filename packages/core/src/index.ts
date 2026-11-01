@@ -1,5 +1,6 @@
 import { z } from 'zod'
 export * from './auth.js'
+export * from './runtime.js'
 
 // Reject credentials, query strings, encoded paths and non-repository GitHub URLs.
 const owner = '[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?'
@@ -67,7 +68,7 @@ export const auditSchema = z.discriminatedUnion('status', [
   }).strict(),
 ])
 export const createAuditResponseSchema = z.object({ jobId: jobIdSchema, status: z.literal('PENDING') }).strict()
-export const healthSchema = z.object({ status: z.literal('ok'), service: z.string(), mode: z.enum(['mock', 'audit']), aiMode: z.enum(['mock', 'openai']) }).strict()
+export const healthSchema = z.object({ status: z.literal('ok'), service: z.string(), mode: z.enum(['mock', 'audit']), aiMode: z.enum(['mock', 'openai']), execution: z.enum(['local', 'sqs']).optional() }).strict()
 export const historyQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20), cursor: z.string().max(256).optional(),
 }).strict()
@@ -93,7 +94,7 @@ export interface AuditStore {
   get(ownerSub: string, jobId: string): Promise<Audit | undefined>
   list(ownerSub: string, limit: number, cursor?: string): Promise<History>
   claim(ownerSub: string, jobId: string): Promise<Audit | undefined>
-  finish(ownerSub: string, audit: Audit): Promise<boolean>
+  finish(ownerSub: string, audit: Audit, expectedStatus?: 'PENDING' | 'RUNNING'): Promise<boolean>
   active(): Promise<{ ownerSub: string; jobId: string; leaseUntil: number } | undefined>
   saveMachine(ownerSub: string, jobId: string, machine: MachineResult): Promise<boolean>
   beginAi(ownerSub: string, jobId: string, model: string, attemptedAt: string): Promise<boolean>

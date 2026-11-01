@@ -1,6 +1,6 @@
 # Terraformの準備状況
 
-2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。当初はinit前で停止し、その後、利用者がinit・旧構成のPlanを実行した。dev専用ドメインは `repo-sentinel-dev.prj.kupac.co.jp`。利用者のapplyで21リソースが作成され、Origin Request Policyのエラーで残りが未作成となった。原因を修正し、**4件追加・変更／削除0件の再apply用Planを保存済み。このエージェントによる再applyは未実行。その後、利用者が初期ユーザーを作成し、ローカルのReact/Hono認証を実装した。**
+2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。途中の部分適用・CloudFront修正の経緯は後述する。Phase 4の読み取りでは基盤のmanagedリソース25件と `runtime_enabled=false` を確認した。Lambda・SQS統合は実装・成果物検証済みで、最新Planは27件追加・1件更新・削除0件。費用通知は任意・未設定。その後、利用者がruntimeをapplyし、Frontendも配布済み。配置済みLambda/SQS・公開HTTP経路を確認し、apply後のPlanは差分なし。[AWS検証記録](../../docs/spec/phase4-verification.md)に実績と未確認範囲を記録する。[最新の配布手順](../../docs/dev/aws-deployment.md)を参照する。
 
 | 項目 | 採用した設定 |
 |---|---|
@@ -17,7 +17,7 @@
 | Terraform | `>= 1.10.0, < 2.0.0`。ローカルの1.17.0でfmtを確認 |
 | AWS Provider | 参照元のlockファイルと同じ6.69.1に固定 |
 
-`backend.hcl` と `terraform.tfvars` はexampleから作成済みでGit管理外。設定例には接続先識別子だけを記載し、AWS資格情報・OpenAIキー・パスワードを置かない。既存Stateバケットの所有権やポリシーは本プロジェクトへ取り込まない。
+`backend.hcl` と `terraform.tfvars` はexampleから作成済みでGit管理外。 環境の入力設定は `terraform.tfvars` に集約し、通常のPlanで自動読込する。Lambda有効化の設定もこのファイルへ統合済みで、追加var-fileは使用しない。設定例には接続先識別子だけを記載し、AWS資格情報・OpenAIキー・パスワードを置かない。既存Stateバケットの所有権やポリシーは本プロジェクトへ取り込まない。
 
 ## AWSの読み取り確認結果（2026-11-01）
 
@@ -65,7 +65,7 @@ State本文、既存のStateオブジェクト、IAM、Bucket Policy、Lifecycle
 
 初期設定は `enable_runtime=false`。この状態で将来applyするとCognito・Frontend・Database・Queue・値未設定のSecretコンテナ等を作成するが、Lambda・runtime用IAM・SQS消費は作成しない。`/api` と `/api/*` はCloudFront Functionで503を返す。Frontendの静的ファイルはTerraformから自動アップロードしないため、初期S3は空になる。
 
-`enable_runtime=true` はPhase 4の準備後に使う。API/Workerの読み取り可能なZIP、npm Layer ARN、許可Cognito sub、AWS予算額とメールの設定を必須とする。APIはNode.js 24 / timeout 15秒 / concurrency 2、WorkerはNode.js 24 / timeout 180秒 / concurrency 2、SQS mappingはbatch 1 / maximum concurrency 2。アプリ側の同時監査1件・日次回数・冪等性は別途実装・検証する。
+`enable_runtime=true` はPhase 4の準備後に使う。API/Workerの読み取り可能なZIP、npm Layer ZIPまたは既存ARN、許可Cognito subを必須とする。AWS予算額とメールは任意。APIはNode.js 24 / timeout 15秒 / concurrency 2、WorkerはNode.js 24 / timeout 180秒 / concurrency 2、SQS mappingはbatch 1 / maximum concurrency 2。アプリ側の同時監査1件・日次回数・冪等性は別途実装・検証する。
 
 CognitoはESSENTIALS、自己登録禁止、TOTP MFA必須、OAuth Code Flow、client secretなし、外部IdPなし。初回から `https://repo-sentinel-dev.prj.kupac.co.jp/auth/callback` と `http://localhost:5173/auth/callback` を登録する。Logoutも同じ2オリジンを登録し、default redirectはdevのHTTPS URLとする。PKCE・JWT検証・許可sub認可はローカルへ実装済み。本人のログインを確認し、TOTP登録状態は [Cognito仕様](../../docs/spec/cognito-auth.md) に検証範囲を記録する。
 
@@ -73,7 +73,7 @@ CognitoはESSENTIALS、自己登録禁止、TOTP MFA必須、OAuth Code Flow、c
 
 API経路はキャッシュ無効とする。runtime有効時はAWS管理の [AllViewerExceptHostHeader](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#managed-origin-request-policy-all-viewer-except-host-header)（`b689b0a8-53d0-40ab-baf2-68738e2966ac`）を参照する。Hostをオリジンのものへ置換し、ほかのviewerヘッダー・cookie・queryを転送する。OACがAuthorizationを署名で置換し、アプリのJWTは `X-Access-Token` で受け取る。POST/PUTの `X-Amz-Content-Sha256` 要件は維持する。runtime無効時はOrigin Request Policyを付けず、viewer requestのFunctionで503を返す。Lambdaのリソースポリシーは当該Distributionだけに `InvokeFunctionUrl` と、Function URL経由の `InvokeFunction` を許可する。Workerだけが対象Secretを読み取れる。
 
-CloudWatchはDLQ件数1以上・Queue最古600秒以上を定義し、runtime有効時はLambda ErrorsとWorker Duration 170秒以上も監視する。`budget_monthly_usd` と `budget_email` を両方設定するとAWS予算の80%/100%実績通知とSNSメール購読を作成する。購読確認、Projectタグのコスト配分タグ有効化はapply後の管理作業。未設定時のCloudWatch Alarmは通知先なしであり、AWS予算も作成しない。AWS予算は通知であり、実行の強制停止ではない。
+CloudWatchはDLQ件数1以上・Queue最古600秒以上を定義し、runtime有効時はLambda ErrorsとWorker Duration 170秒以上も監視する。`budget_monthly_usd` と `budget_email` を両方設定すると、無料のAWS予算監視・80%/100%実績の直接メール通知を作成する。CloudWatch運用通知のSNSメール購読は別の `alarm_email` で設定し、予算通知だけでは作成しない。購読確認、Projectタグのコスト配分タグ有効化はapply後の管理作業。未設定時のCloudWatch Alarmは通知先なしであり、AWS予算も作成しない。AWS予算は通知であり、実行の強制停止ではない。
 
 ## Versioning有効化の影響評価（2026-11-01）
 
@@ -166,7 +166,7 @@ AWSが仮パスワードを生成して本人のメールへ招待を送る。�
 
 現在の仮パスワード有効期限は3日。初回ログインを進められる段階で作成し、Managed Loginで本パスワード（16文字以上・英大文字／小文字／数字／記号）への変更、認証アプリへのQR登録、6桁TOTPの確認まで続けて完了する。パスワードやTOTP秘密値をTerraform・このスクリプト・ログへ保存しない。ReactのCallback・HonoのJWT検証は実装済み。`http://localhost:5173` から初回ログインを行い、監査画面へ戻ることを確認する。契約と検証範囲は [Cognito仕様](../../docs/spec/cognito-auth.md) を参照する。
 
-Phase 3では作成済みCognitoを使い、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。Phase 4のruntime有効化前には以下を完了する。
+Phase 3では作成済みCognitoを使い、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。以下は準備時点の要件。現在はLambda/SQS・分散予算・Secret取得・成果物作成を実装し、apply前Planまで検証済み。最新の反映手順は [AWS配布](../../docs/dev/aws-deployment.md)、契約と検証限界は [AWS runtime仕様](../../docs/spec/aws-runtime.md) を参照する。AWS予算通知は任意で、今回は設定しない。dev反映・Frontend配布・公開HTTP経路は確認済み。認証後の監査フロー・実Secret・実AI等の状況はAWS検証記録を参照する。
 
 - 実装済みCognito認可とPOST本文ハッシュの生成をAWS経路で実検証する。
 - SQSハンドラーとownerSub検証、DynamoDBでの分散ロック・リース・永続AI予算管理、成否不明時の再試行抑制。

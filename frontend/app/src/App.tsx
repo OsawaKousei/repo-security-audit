@@ -24,7 +24,7 @@ function AuditTable({ items }: { items: Audit[] }) {
       <td>{date(audit.createdAt)}</td><td><Status audit={audit} /></td><td>{total(audit)}</td>
     </tr>)}</tbody></table></div>
 }
-function StartAudit({ mode }: { mode: 'mock' | 'audit' }) {
+function StartAudit({ mode, execution }: { mode: 'mock' | 'audit'; execution?: 'local' | 'sqs' }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
@@ -48,7 +48,7 @@ function StartAudit({ mode }: { mode: 'mock' | 'audit' }) {
   return <>
     <div className="page-heading"><p className="eyebrow">REPOSITORY AUDIT</p><h1>依存関係のリスクを、見える形に。</h1><p>GitHubリポジトリを指定して、監査レポートの流れを確認できます。</p></div>
     <section className="card"><h2>新しい監査</h2><form onSubmit={(event) => { void submit(event) }}>
-      {mode === 'audit' && <p className="notice">実監査ジョブを作成します。作成後、表示されるジョブIDを使ってComposeのWorkerを直接実行してください。</p>}
+      {mode === 'audit' && <p className="notice">{execution === 'sqs' ? '実監査を開始します。完了するとレポートが表示されます。' : '実監査ジョブを作成します。作成後、表示されるジョブIDを使ってComposeのWorkerを直接実行してください。'}</p>}
       <label htmlFor="repository">GitHubリポジトリURL</label>
       <div className="form-row"><input id="repository" type="url" required value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://github.com/owner/repository" autoComplete="off" aria-describedby="repository-help" />
         <button type="submit" disabled={sending || active.length > 0}>{sending ? '開始しています…' : '監査を開始'}</button></div>
@@ -73,7 +73,7 @@ function HistoryPage({ cursor }: { cursor?: string }) {
 function ReportList({ title, items }: { title: string; items: string[] }) {
   return <div><h3>{title}</h3><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></div>
 }
-function DetailPage({ id }: { id: string }) {
+function DetailPage({ id, execution }: { id: string; execution?: 'local' | 'sqs' }) {
   const load = useCallback((signal: AbortSignal) => getAudit(id, signal), [id])
   const { data: audit, error, retry } = usePolling(load, isActive)
   const machine = machineOf(audit)
@@ -90,7 +90,7 @@ function DetailPage({ id }: { id: string }) {
           {machine && <><dt>対象コミット{audit.mode === 'mock' ? '（モック）' : ''}</dt><dd><code>{machine.commitSha}</code></dd></>}
         </dl>
         {isActive(audit) && <p className="progress" role="status">{audit.status === 'PENDING' ? '監査の開始を待っています。' : audit.mode === 'mock' ? 'モック監査を実行しています。' : '実際の依存関係を監査しています。'} 2.5秒ごとに更新します。</p>}
-        {audit.mode === 'audit' && audit.status === 'PENDING' && <p><code>docker compose run --rm -e AUDIT_MODE=audit -e AI_MODE={audit.aiMode ?? 'mock'} worker npm run audit:local -w workers/security-audit/app -- {audit.jobId}</code></p>}
+        {execution === 'local' && audit.mode === 'audit' && audit.status === 'PENDING' && <p><code>docker compose run --rm -e AUDIT_MODE=audit -e AI_MODE={audit.aiMode ?? 'mock'} worker npm run audit:local -w workers/security-audit/app -- {audit.jobId}</code></p>}
         {audit.status === 'FAILED' && <ErrorNotice message={`監査に失敗しました（${audit.errorCode}）。新しい監査を開始してください。`} />}
       </section>
       {machine && <section className="card"><h2>機械監査の検出結果{audit.mode === 'mock' ? '（モック）' : ''}</h2><p className="muted">{audit.mode === 'mock' ? 'サンプルデータです。実際のリポジトリから取得した検出結果ではありません。' : '対象コミットのルート依存関係に対するnpm auditの結果です。件数は脆弱性を持つパッケージ単位です。'}</p>
@@ -120,9 +120,9 @@ function App() {
   const [path, query] = (hash.slice(1) || '/').split('?')
   const detail = /^\/audits\/([^/]+)$/.exec(path)
   return <><header><a className="brand" href="#/">◈ <span>Repo Sentinel</span></a><nav aria-label="メインナビゲーション"><a href="#/" aria-current={path === '/' ? 'page' : undefined}>監査を開始</a><a href="#/audits" aria-current={path.startsWith('/audits') ? 'page' : undefined}>監査履歴</a></nav><span className="local-badge">{auth.mode === 'cognito' ? '開発環境 · COGNITO' : health.data?.mode === 'audit' ? 'LOCAL AUDIT' : 'LOCAL MOCK'}</span>{auth.mode === 'cognito' && <button className="secondary logout" onClick={() => { void auth.logout() }}>ログアウト</button>}</header>
-    <main><aside className="notice">監査開始の設定：{health.data?.mode === 'audit' ? '実監査（Worker直接実行）' : 'ローカルモック'}。各レポートに実監査・モックとAI説明の種類を表示します。</aside>
+    <main><aside className="notice">監査開始の設定：{health.data?.mode === 'audit' ? health.data.execution === 'sqs' ? '実監査' : '実監査（Worker直接実行）' : 'ローカルモック'}。各レポートに実監査・モックとAI説明の種類を表示します。</aside>
       {health.error && <ErrorNotice message={health.error} retry={health.retry} />}
-      {path === '/' ? health.data ? <StartAudit mode={health.data.mode} /> : !health.error && <p role="status">読み込み中…</p> : path === '/audits' ? <HistoryPage key={hash} cursor={new URLSearchParams(query).get('cursor') ?? undefined} /> : detail ? <DetailPage key={detail[1]} id={detail[1]} /> : <ErrorNotice message="ページが見つかりません。" />}
+      {path === '/' ? health.data ? <StartAudit mode={health.data.mode} execution={health.data.execution} /> : !health.error && <p role="status">読み込み中…</p> : path === '/audits' ? <HistoryPage key={hash} cursor={new URLSearchParams(query).get('cursor') ?? undefined} /> : detail ? <DetailPage key={detail[1]} id={detail[1]} execution={health.data?.execution} /> : <ErrorNotice message="ページが見つかりません。" />}
     </main><footer>Repo Sentinel · Local development</footer></>
 }
 export default App

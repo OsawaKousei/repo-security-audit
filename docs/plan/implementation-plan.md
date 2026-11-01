@@ -1,8 +1,8 @@
 # Repo Sentinel — PoC実装計画
 
-**状態:** Phase 2のローカルWorkerに加え、Phase 3のローカルCognito認証を実装・検証済み。本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。契約と根拠は[Cognito仕様](../spec/cognito-auth.md)、[Worker仕様](../spec/local-worker.md)、[Phase 2検証記録](../spec/phase2-verification.md)を参照する。基本範囲は[ローカル基本仕様](../spec/local-basic.md)と[Phase 1検証記録](../spec/phase1-verification.md)に記録する。本書の未実装部分は後続Phaseの要件とする。
+**状態:** Phase 3のローカル認証に加え、Phase 4のLambda・SQS統合を実装し、apply前の成果物・コンテナ・Planまで検証済み。その後devへ反映し、Frontend配布・公開HTTP経路を確認した。本人による監査フローと実Secret・実AI等の確認は残る。最新結果は [AWS検証記録](../spec/phase4-verification.md) を参照する。本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。契約と根拠は[Cognito仕様](../spec/cognito-auth.md)、[Worker仕様](../spec/local-worker.md)、[Phase 2検証記録](../spec/phase2-verification.md)を参照する。基本範囲は[ローカル基本仕様](../spec/local-basic.md)と[Phase 1検証記録](../spec/phase1-verification.md)に記録する。本書の未実装部分は後続Phaseの要件とする。
 
-本書はFrontend・API・データ・Worker・AIの固有要件を管理する。共通要件や手順は下表の担当文書に一本化し、本書へ複製しない。Phase 1ではFrontend、API、共有Zod契約、DynamoDB Local、モックWorker、履歴・ポーリング・結果表示を実装した。Phase 2で実GitHub取得・npm監査・AIモック/実Responses API、Phase 3でReact/HonoのCognito認証を実装した。AWS基盤はTerraform定義と部分適用まで進み、アプリのSQS・Lambda連携は未実装。本書の将来要件や例示を実装済みと扱わない。
+本書はFrontend・API・データ・Worker・AIの固有要件を管理する。共通要件や手順は下表の担当文書に一本化し、本書へ複製しない。Phase 1ではFrontend、API、共有Zod契約、DynamoDB Local、モックWorker、履歴・ポーリング・結果表示を実装した。Phase 2で実GitHub取得・npm監査・AIモック/実Responses API、Phase 3でReact/HonoのCognito認証を実装した。AWS基盤はTerraform定義と部分適用まで進み、アプリのSQS・Lambda連携はPhase 4で実装し、ローカル・公式Lambdaコンテナ・Planで検証済み。実AWS devへの反映と公開HTTP経路は確認し、認証後の監査フロー等の確認は残る。契約と確認根拠は [AWS runtime仕様](../spec/aws-runtime.md) を参照する。本書の将来要件や例示を実装済みと扱わない。
 
 ## 参照先と担当範囲
 
@@ -235,7 +235,7 @@ stateDiagram-v2
 
 ## Worker・機械監査
 
-ローカルの実装済み契約・対応範囲は[Worker仕様](../spec/local-worker.md)に確定した。以下のSQS/Lambda設定とメッセージ契約は後続Phaseの計画。
+ローカルの実装済み契約・対応範囲は[Worker仕様](../spec/local-worker.md)に確定した。SQS/Lambdaの実装済み契約と検証範囲は [AWS runtime仕様](../spec/aws-runtime.md) を参照する。以下の初期計画との差異も同仕様へ記録した。
 
 ### 処理本体とエントリーポイント
 

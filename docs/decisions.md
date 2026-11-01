@@ -58,13 +58,24 @@
 
 実装と検証結果は [Cognito仕様](spec/cognito-auth.md) を正とする。本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰は確認済み。AWSアプリ統合は後続作業。
 
+## Phase 4の実装で確定した扱い（2026-11-01）
+
+- API-04：保存後にversion付きownerSub/jobIdを送信。SQS送信失敗の補償はPENDING限定で、RUNNINGへ進んだ処理を巻き戻さない。受理回数を返却しない。
+- DATA-02/03：claimとロック更新を原子化し、待機15分・実行210秒・処理最大170秒。RUNNINGは再実行せず、期限切れは終端失敗へ。SQSは保存済みジョブと許可sub・モードを照合する。
+- AI-02：AWSはDynamoDBで日次・月次・ジョブ別予約・有効リースを一括確認する。AIマーカー・予約は返却せず、結果不明を再発行しない。Local台帳とは別。
+- DEV-05：クリーンnpm ciからSDK込みCommonJS ZIP、npm 12.2.1 Layer、undici 6.29.1差し替え、認証設定済みFrontendとハッシュマニフェストを生成する。 環境の入力設定は利用者指示で `terraform.tfvars` に集約し、追加var-fileを廃止する。ビルドは設定を更新しない。
+- OPS-01：実アカウントのLambda枠10では予約枠2×2を使えず、確認用devは未予約枠を使う。SQS最大並列2、DynamoDB同時監査1を維持。通常の予約枠2はQuota確保後に使用できる。
+- OPS-03：部分失敗・通常FAILEDも専用ログメトリクスで監視する。AWS Budgetsは利用者の指摘を反映して任意とし、有効化の必須条件を削除した。無料の予算直接メールとSNS運用通知は設定を分離し、金額・宛先は未設定のままにする。OpenAIの強制停止・アプリ予算は維持する。
+
+詳細は [AWS runtime仕様](spec/aws-runtime.md) と [配布手順](dev/aws-deployment.md) を参照する。その後、利用者がdevへapplyし、Frontend配布・公開HTTP経路を確認した。最新の範囲は [AWS検証記録](spec/phase4-verification.md) を参照する。実Secret・実AI等は残り、Phase 4全体の完了ではない。
+
 ## Terraform準備で確認した扱い（2026-11-01）
 
 利用者指定でAWS profileは `kupacllc`、リージョンは `ap-northeast-1`、Stateは参照元と同じ既存バケットとする。devの公開URLは `repo-sentinel-dev.prj.kupac.co.jp`、本番用は `repo-sentinel.prj.kupac.co.jp`。指定済みus-east-1のワイルドカード証明書を利用し、bootstrap・証明書再発行は行わない。dev用Terraformは本番ドメインを拒否する。固定URLを初回からCognitoへ登録し、手動のURL転記やSSM追加は不要とする。
 
-OPS-02の初期選択はTerraform `>= 1.10.0, < 2.0.0`、AWS Provider 6.69.1、S3 native lock。Stateキーをアプリ・環境専用に分ける。共有StateのVersioningは利用者承認後に有効化し、15分待機後も既存Stateが不変であることを確認した。利用者のinit後、固定devドメイン構成でvalidate・初回Plan（26件追加）を確認した。その後、利用者のapplyで21件作成・Origin Request Policyエラーを確認し、AWS管理のAllViewerExceptHostHeader参照へ修正した。再apply用Planは4件追加・変更／削除0件、モック6ケースが成功。再applyは未実施。本人ユーザーは読取既定・明示作成のCLIスクリプトで準備し、既存ユーザーのパスワード・MFA・招待は変更しない。具体的な設定と実施記録は [Terraform README](../infra/terraform/README.md) に一本化する。
+OPS-02の初期選択はTerraform `>= 1.10.0, < 2.0.0`、AWS Provider 6.69.1、S3 native lock。Stateキーをアプリ・環境専用に分ける。共有StateのVersioningは利用者承認後に有効化し、15分待機後も既存Stateが不変であることを確認した。利用者のinit後、固定devドメイン構成でvalidate・初回Plan（26件追加）を確認した。その後、利用者のapplyで21件作成・Origin Request Policyエラーを確認し、AWS管理のAllViewerExceptHostHeader参照へ修正した。再apply用Planは4件追加・変更／削除0件、モック6ケースが成功。これは準備時点の記録。Phase 4の読み取りでは基盤25件を確認し、runtime有効化Planを別途作成した。本人ユーザーは読取既定・明示作成のCLIスクリプトで準備し、既存ユーザーのパスワード・MFA・招待は変更しない。具体的な設定と実施記録は [Terraform README](../infra/terraform/README.md) に一本化する。
 
-DEV-05の初期構成はNode.js 24 x86_64のZIPとnpm Layerの組合せ。現在のローカルWorkerをAWSへ直接デプロイせず、AWS認証・SQS・分散費用管理・npm Layer対応を完了するまで `enable_runtime=false` とする。OPS-01の初期redriveはmaxReceiveCount 2、batch 1、Worker/ESM並列度2。アプリの同時監査上限1は別のDynamoDBロックで守る。OPS-03はログ14日、Queue/DLQ/Lambdaの基本アラームを定義し、アプリ固有の失敗指標はPhase 4で追加する。AWS予算の金額・メールは初回運用前に設定し、Projectタグのコスト配分有効化を確認する。
+DEV-05の初期構成はNode.js 24 x86_64のZIPとnpm Layerの組合せ。現在のローカルWorkerをAWSへ直接デプロイせず、AWS認証・SQS・分散費用管理・npm Layer対応を完了するまで `enable_runtime=false` とする。OPS-01の初期redriveはmaxReceiveCount 2、batch 1、Worker/ESM並列度2。アプリの同時監査上限1は別のDynamoDBロックで守る。OPS-03はログ14日、Queue/DLQ/Lambdaの基本アラームを定義し、アプリ固有の失敗指標はPhase 4で追加する。準備時点ではAWS予算通知を有効化条件としていたが、Phase 4で任意へ修正した。Projectタグのコスト配分は予算通知を利用する前に確認する。
 
 ## 開発環境・ビルド
 

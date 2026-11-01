@@ -52,7 +52,7 @@ ComposeではFrontend・API・DynamoDB Localを常時起動し、Workerは必要
 | AWS Dev | AWS | AWS | Lambda | dev User Pool |
 | AWS Prod | AWS | AWS | Lambda | prod User Pool |
 
-Phase 1の基本契約は[確定仕様](spec/local-basic.md)、Phase 2の実監査・AI・永続費用台帳は[Worker仕様](spec/local-worker.md)を参照する。ローカルCognitoの契約は [認証仕様](spec/cognito-auth.md) を参照する。AWSアプリ統合は未実装。
+Phase 1の基本契約は[確定仕様](spec/local-basic.md)、Phase 2の実監査・AI・永続費用台帳は[Worker仕様](spec/local-worker.md)を参照する。ローカルCognitoの契約は [認証仕様](spec/cognito-auth.md) を参照する。AWSアプリの接続コード・成果物作成は実装し、ローカル・公式Lambdaコンテナ・Terraform Planで検証済み。実AWS devへの反映・Frontend配布・公開HTTP経路を確認済み。認証後の監査フロー等の確認状況は [AWS検証記録](spec/phase4-verification.md) を参照する。契約は [AWS runtime仕様](spec/aws-runtime.md)、手順は [AWS配布](dev/aws-deployment.md) を参照する。
 
 ローカルにSQSエミュレーターは導入しない。初期Phase 1のlocalhost限定認証例外は[開発ワークフロー](dev/workflow.md)に従う。
 

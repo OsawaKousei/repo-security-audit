@@ -1,6 +1,6 @@
 # Repo Sentinel
 
-公開GitHubリポジトリのnpm依存関係を監査する個人用PoCです。Phase 2の実監査・AIに加え、**Phase 3のReact・HonoのCognito認証**を実装しています。ローカル画面からdev User Poolへログインし、本人のsubで監査・履歴を扱います。SQS・LambdaのAWS統合は後続作業です。
+公開GitHubリポジトリのnpm依存関係を監査する個人用PoCです。Phase 2の実監査・AIに加え、**Phase 3のReact・HonoのCognito認証**を実装しています。ローカル画面からdev User Poolへログインし、本人のsubで監査・履歴を扱います。Phase 4のLambda・SQSをdevへ反映し、Frontendも配布しました。公開URLとAPIの認証境界を確認済みで、本人による監査フローは確認中です。[AWS検証記録](docs/spec/phase4-verification.md)を参照してください。[AWS配布手順](docs/dev/aws-deployment.md)を参照してください。
 
 ## ローカル起動
 
@@ -48,6 +48,6 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright npm run test:e2e
 npm run build:clean
 ```
 
-通常のブラウザーテストは起動済みCognito構成のComposeを使い、OIDC・API応答をモックして認証UIを検証します。実アカウントのパスワード・MFAやOpenAIを操作しません。従来のモック監査E2Eは明示的なローカルテスト認証設定だけで実行します。統合テストは専用テーブルを自動作成・削除します。`build:clean` はソースとマニフェストだけを一時ディレクトリへコピーし、独立した `npm ci` とビルドを実行して削除します。Lambdaの実行環境検証は後続Phaseです。
+通常のブラウザーテストは起動済みCognito構成のComposeを使い、OIDC・API応答をモックして認証UIを検証します。実アカウントのパスワード・MFAやOpenAIを操作しません。従来のモック監査E2Eは明示的なローカルテスト認証設定だけで実行します。統合テストは専用テーブルを自動作成・削除します。`build:clean` はソースとマニフェストだけを一時ディレクトリへコピーし、独立した `npm ci` とビルドを実行して削除します。AWS向け成果物は別のクリーンビルドで作成し、公式Lambdaコンテナでも検証しています。契約と実績は[AWS runtime仕様](docs/spec/aws-runtime.md)を参照してください。
 
 停止は `docker compose down`。詳細は[ローカル開発](docs/dev/local-development.md)、実装契約は[Cognito認証](docs/spec/cognito-auth.md)・[Worker仕様](docs/spec/local-worker.md)・[Phase 1仕様](docs/spec/local-basic.md)、全体計画は[実装計画](docs/plan/implementation-plan.md)を参照してください。

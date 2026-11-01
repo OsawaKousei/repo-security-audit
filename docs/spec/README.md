@@ -13,8 +13,10 @@
 | [Terraform準備の検証記録](terraform-preparation.md) | dev基盤の部分適用・CloudFront修正・再apply前の検証 |
 | [dev初期ユーザー作成](dev-user-bootstrap.md) | 読み取り既定のCLI・作成条件・再実行時の保持・検証範囲 |
 | [Cognito認証](cognito-auth.md) | ReactのPKCE、HonoのJWT・本人認可、ローカル所有者、検証結果 |
+| [AWS runtime](aws-runtime.md) | Lambda/SQS・分散予算・Secret・成果物の契約 |
+| [Phase 4 AWS検証記録](phase4-verification.md) | dev配布・公開HTTP/認証経路・実サービスの検証結果と限界 |
 
-Cognito認証はローカルへ実装し、本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。SQSアプリ連携・AWS統合は後続作業。以前の5分野の計画は引き続き実装計画で管理する。
+Cognito認証はローカルへ実装し、本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。Lambda・SQSをdevへ反映しFrontendも配布済み。公開HTTP経路を確認し、本人による監査フローと実Secret・実AI等の検証は残る。以前の5分野の計画は引き続き実装計画で管理する。
 
 ## 記載する内容
 

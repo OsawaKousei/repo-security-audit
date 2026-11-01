@@ -9,8 +9,10 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@repo-sentinel/core": "0.0.0",
     "@aws-sdk/client-dynamodb": "^3.900.0",
-    "@aws-sdk/lib-dynamodb": "^3.900.0"
+    "@aws-sdk/client-secrets-manager": "3.1161.0",
+    "@aws-sdk/client-sqs": "3.1161.0",
+    "@aws-sdk/lib-dynamodb": "^3.900.0",
+    "@repo-sentinel/core": "0.0.0"
   }
 }

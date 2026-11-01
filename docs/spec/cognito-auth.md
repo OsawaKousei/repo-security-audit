@@ -18,7 +18,7 @@ sessionStorageにはclient別prefixで、認可応答の照合に必要なstate�
 
 JWTは共有定数の `X-Access-Token` だけから受け取る。Authorization、所有者ヘッダー、本文のownerSubは認証に使わない。未認証・不正JWTは401、正しい署名でも許可sub以外は403。エラー応答・ログへJWT・claim・ライブラリの生エラーを出さない。`createApp` の認可コールバックは非同期に対応し、未指定時は拒否する。
 
-FrontendはAPIを相対パスで呼び、アクセストークンを専用ヘッダーへ付ける。POSTのJSON本文そのものをSHA-256でハッシュし、`X-Amz-Content-Sha256` へ設定する。401/403を自動再試行しない。LambdaのCognito認可factoryは実装済みだが、既定handlerはAWS storage/queue未設定として503を返し、Phase 4までデプロイしない。
+FrontendはAPIを相対パスで呼び、アクセストークンを専用ヘッダーへ付ける。POSTのJSON本文そのものをSHA-256でハッシュし、`X-Amz-Content-Sha256` へ設定する。401/403を自動再試行しない。Phase 3追加時のLambdaは未設定503だった。Phase 4で実DynamoDB/SQSへ接続するhandlerを実装したため、現在のAWS契約は [AWS runtime仕様](aws-runtime.md) を参照する。
 
 ## ローカル実行と所有者
 

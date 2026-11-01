@@ -58,6 +58,8 @@
 
 目的：実AWSサービス間の連携を確認する。
 
+2026-11-01：Lambda API・SQS Worker・DynamoDBの分散予算・Secret取得・npm Layerとクリーン成果物作成を実装した。単体167件・Local統合26件・認証E2E3件・Terraformモック10件、公式Lambda Node.js 24コンテナでのロードと実npm auditを確認した。有効化Planを利用者がapplyし、Frontendを配布した。配置済みLambda/SQS・公開HTTP/認証経路・apply後差分なしを確認。本人による監査フローは確認中で、実Secret・実AI等は残る。[AWS dev検証記録](../spec/phase4-verification.md)を参照する。AWS Budgets直接メールとSNS運用通知は別々の任意設定とし、今回のPlanでは未設定。[契約と検証限界](../spec/aws-runtime.md)・[反映手順](aws-deployment.md)を参照する。
+
 - API・Worker Lambdaのデプロイ、DynamoDBの構築。
 - SQS・DLQ・Event Source Mapping。
 - CloudFront + S3、Function URL OAC。

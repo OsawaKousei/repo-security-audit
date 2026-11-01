@@ -174,7 +174,7 @@ AUTH_MODE=cognito LOCAL_AUTH_BYPASS=false docker compose up -d --wait api fronte
 
 このモック監査E2Eは `local-user` の監査枠を1回消費する。bypassは開発ビルド・loopback・明示設定時だけに限定し、通常起動では使わない。ブラウザーのシステム依存が必要な場合はPlaywrightの案内に従う。
 
-`build:clean` はホストの `node_modules`・既存 `dist`・秘密情報をコピーせず、一時ディレクトリで `npm ci` とビルドを実行する。出力は検証後に削除する。APIのCognito認可factoryは実装済みだが、`dist/lambda.js` の既定handlerはAWS storage/queue未設定として503を返す。AWSデプロイ成果物の完成を意味しない。npm監査用のComposeランタイムはPhase 2で確認済み。Lambda側のnpm配置・SQS・AWS統合は後続Phaseで検証する。
+`build:clean` はホストの `node_modules`・既存 `dist`・秘密情報をコピーせず、一時ディレクトリで `npm ci` とビルドを実行する。出力は検証後に削除する。Lambda handlerはPhase 4で実DynamoDB/SQSへ接続する実装へ更新した。通常の `build` はAWS配布用ZIPではない。専用のクリーンビルド・検証は [AWS配布](aws-deployment.md) を参照する。npm監査用のComposeランタイムはPhase 2で確認済み。Lambdaのnpm配置・SQS処理は実装と公式コンテナでの検証まで進み、実AWS疎通は残る。
 
 ```bash
 docker compose down
