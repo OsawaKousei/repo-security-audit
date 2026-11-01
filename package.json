@@ -1,0 +1,41 @@
+{
+  "name": "repo-sentinel",
+  "private": true,
+  "version": "0.0.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "frontend/app",
+    "api/app",
+    "workers/security-audit/app",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces && tsc -p tsconfig.tests.json",
+    "build": "npm run build --workspaces",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "tsx --test tests/integration.test.ts",
+    "test:e2e": "playwright test",
+    "setup:local": "node scripts/setup-local.mjs",
+    "build:clean": "node scripts/clean-build.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.27.0",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "jsdom": "^27.0.0",
+    "npm": "12.2.1",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "undici": "6.29.1",
+    "vitest": "^4.0.0"
+  },
+  "type": "module"
+}

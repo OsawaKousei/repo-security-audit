@@ -1,0 +1,26 @@
+{
+  "name": "@repo-sentinel/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/local.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild src/local.ts src/lambda.ts --bundle --platform=node --target=node24 --format=esm --external:@aws-sdk/* --outdir=dist",
+    "start": "node dist/local.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@repo-sentinel/aws": "0.0.0",
+    "@repo-sentinel/core": "0.0.0",
+    "@repo-sentinel/worker": "0.0.0",
+    "aws-jwt-verify": "5.2.1",
+    "hono": "^4.13.14",
+    "ulid": "^3.0.0"
+  }
+}

@@ -1,0 +1,38 @@
+aws_profile    = "kupacllc"
+aws_region     = "ap-northeast-1"
+aws_account_id = "103492189525"
+project_name   = "repo-sentinel"
+environment    = "dev"
+public_domain  = "repo-sentinel-dev.prj.kupac.co.jp"
+
+acm_certificate_arn = "arn:aws:acm:us-east-1:103492189525:certificate/7b6cdfdb-5b63-4572-936c-f7362c471713"
+route53_zone_id     = "Z06893261CC94H6AKTJGK"
+
+tags = {}
+
+# Keep false for the initial foundation. Set true here after building artifacts
+# and creating the Cognito user. All environment inputs stay in this file.
+enable_runtime = false
+
+# Set the sub returned by scripts/create-dev-user.ts before enabling runtime.
+allowed_user_sub = null
+
+# Paths are relative to this dev directory and match the default build output.
+api_artifact_path     = "../../../../.local/artifacts/dev/api.zip"
+worker_artifact_path  = "../../../../.local/artifacts/dev/worker.zip"
+worker_npm_layer_path = "../../../../.local/artifacts/dev/npm-layer.zip"
+worker_npm_layer_arn  = null
+
+# Real AI needs a dedicated dev Secret and hard-limit confirmation.
+ai_mode                     = "mock"
+openai_hard_limit_confirmed = false
+
+# Low-quota dev account (10 concurrent executions): use no reserved capacity.
+lambda_reserved_concurrency = -1
+log_retention_days          = 14
+
+# Optional free AWS Budgets monitoring/direct email; not required for Lambda.
+budget_monthly_usd = null
+budget_email       = null
+# Separate optional SNS email for operational alarms; SNS pricing applies.
+alarm_email = null
