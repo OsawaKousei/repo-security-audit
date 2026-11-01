@@ -19,7 +19,6 @@
     "test:integration": "tsx --test tests/integration.test.ts",
     "test:e2e": "playwright test",
     "setup:local": "node scripts/setup-local.mjs",
-    "cognito:user": "node --import tsx scripts/create-dev-user.ts",
     "build:clean": "node scripts/clean-build.mjs"
   },
   "devDependencies": {

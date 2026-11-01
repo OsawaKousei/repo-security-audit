@@ -9,7 +9,11 @@ x-node: &node
 x-local-env: &local-env
   NODE_ENV: development
   APP_ENV: local
-  LOCAL_AUTH_BYPASS: "true"
+  AUTH_MODE: "${AUTH_MODE:-cognito}"
+  LOCAL_AUTH_BYPASS: "${LOCAL_AUTH_BYPASS:-false}"
+  COGNITO_ISSUER: "${COGNITO_ISSUER:-}"
+  COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID:-}"
+  ALLOWED_USER_SUB: "${ALLOWED_USER_SUB:-}"
   AUDIT_MODE: "${AUDIT_MODE:-mock}"
   AI_MODE: "${AI_MODE:-mock}"
   MOCK_OUTCOME: "${MOCK_OUTCOME:-success}"
@@ -25,6 +29,11 @@ services:
       - /dev/null:/workspace/.env:ro
     environment:
       NODE_ENV: development
+      VITE_AUTH_MODE: "${AUTH_MODE:-cognito}"
+      VITE_LOCAL_AUTH_BYPASS: "${LOCAL_AUTH_BYPASS:-false}"
+      VITE_COGNITO_ISSUER: "${COGNITO_ISSUER:-}"
+      VITE_COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID:-}"
+      VITE_COGNITO_LOGIN_URL: "${COGNITO_LOGIN_URL:-}"
       npm_config_cache: /tmp/npm-cache
     command: npm run dev -w frontend/app -- --host 0.0.0.0
     ports:
@@ -45,7 +54,7 @@ services:
     depends_on:
       - dynamodb
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 3s
       timeout: 2s
       retries: 20

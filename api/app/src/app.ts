@@ -6,8 +6,8 @@ import { monotonicFactory } from 'ulid'
 const nextId = monotonicFactory()
 type Options = {
   store: AuditStore
-  // Authentication is denied by default. Only the local server supplies this callback.
-  authorize?: (request: Request) => string | undefined
+  // Authentication is denied by default. Entry points supply a verified owner.
+  authorize?: (request: Request) => string | undefined | Promise<string | undefined>
   enqueue?: (jobId: string, ownerSub: string) => Promise<void>
   mode?: 'mock' | 'audit'
   aiMode?: 'mock' | 'openai'
@@ -16,7 +16,7 @@ export function createApp({ store, authorize, enqueue = async () => {}, mode = '
   const app = new Hono<{ Variables: { ownerSub: string } }>()
   app.use('/api/*', async (c, next) => {
     c.header('Cache-Control', 'no-store')
-    const ownerSub = authorize?.(c.req.raw)
+    const ownerSub = await authorize?.(c.req.raw)
     if (!ownerSub) return c.json({ error: { code: 'UNAUTHORIZED', message: '認証が必要です。' } }, 401)
     c.set('ownerSub', ownerSub)
     await next()

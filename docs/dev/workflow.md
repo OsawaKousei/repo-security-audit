@@ -45,7 +45,7 @@
 
 目的：AWS devと認証基盤を準備する。
 
-2026-11-01：dev向けTerraform定義を作成し、利用者のinit後、固定devドメイン構成でvalidate・テスト・Planまで確認した。共有StateのVersioning有効化だけを承認後に実施済み。利用者のapplyでCognito等の21リソースを作成済み。CloudFrontエラーを修正して再apply用Plan（4件追加）を保存した。再applyと初期ユーザー作成・実認証統合は未実施で、Phase 3全体は未完了。[準備状況と次の手順](../../infra/terraform/README.md)を参照する。
+2026-11-01：dev向けTerraform定義を作成し、利用者のinit後、固定devドメイン構成でvalidate・テスト・Planまで確認した。共有StateのVersioning有効化だけを承認後に実施済み。利用者のapplyでCognito等の21リソースを作成済み。CloudFrontエラーを修正して再apply用Plan（4件追加）を保存した。その後、利用者が本人用Cognitoユーザーを作成した。React/Hono認証とCognito subによるローカル所有者を実装し、単体・Local統合・ブラウザーモックを検証済み。本人から実Cognitoログイン後に監査画面へ戻れたと回答を得た。CLIでもユーザーのCONFIRMEDを確認した。本人操作で初回TOTP登録・ログアウト・再ログイン時の6桁コード要求と監査画面への復帰を確認し、ローカル認証の実装・動作検証を完了した。[認証の契約と検証範囲](../spec/cognito-auth.md)を参照する。[準備状況と次の手順](../../infra/terraform/README.md)を参照する。
 
 - Terraform Stateの設定とdev環境定義。今回は既存共有S3を利用するためbootstrapは作成しない。
 - Cognito User Pool、Managed Login、初期ユーザー、TOTP MFA。

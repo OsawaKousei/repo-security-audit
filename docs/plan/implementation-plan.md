@@ -1,8 +1,8 @@
 # Repo Sentinel — PoC実装計画
 
-**状態:** Phase 2のローカルWorkerまで実装・検証済み。追加契約は[Worker仕様](../spec/local-worker.md)、最新の確認根拠は[Phase 2検証記録](../spec/phase2-verification.md)。確定した範囲は[ローカル基本仕様](../spec/local-basic.md)、確認根拠は[検証記録](../spec/phase1-verification.md)を参照する。本書の未実装部分は後続Phaseの要件とする。
+**状態:** Phase 2のローカルWorkerに加え、Phase 3のローカルCognito認証を実装・検証済み。本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。契約と根拠は[Cognito仕様](../spec/cognito-auth.md)、[Worker仕様](../spec/local-worker.md)、[Phase 2検証記録](../spec/phase2-verification.md)を参照する。基本範囲は[ローカル基本仕様](../spec/local-basic.md)と[Phase 1検証記録](../spec/phase1-verification.md)に記録する。本書の未実装部分は後続Phaseの要件とする。
 
-本書はFrontend・API・データ・Worker・AIの固有要件を管理する。共通要件や手順は下表の担当文書に一本化し、本書へ複製しない。Phase 1ではFrontend、API、共有Zod契約、DynamoDB Local、モックWorker、履歴・ポーリング・結果表示を実装した。Phase 2で実GitHub取得・npm監査・AIモック/実Responses APIを実装した。実認証、SQS、AWSインフラは未実装。本書の将来要件や例示を実装済みと扱わない。
+本書はFrontend・API・データ・Worker・AIの固有要件を管理する。共通要件や手順は下表の担当文書に一本化し、本書へ複製しない。Phase 1ではFrontend、API、共有Zod契約、DynamoDB Local、モックWorker、履歴・ポーリング・結果表示を実装した。Phase 2で実GitHub取得・npm監査・AIモック/実Responses API、Phase 3でReact/HonoのCognito認証を実装した。AWS基盤はTerraform定義と部分適用まで進み、アプリのSQS・Lambda連携は未実装。本書の将来要件や例示を実装済みと扱わない。
 
 ## 参照先と担当範囲
 

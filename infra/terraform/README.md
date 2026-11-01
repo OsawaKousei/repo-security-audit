@@ -1,6 +1,6 @@
 # Terraformの準備状況
 
-2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。当初はinit前で停止し、その後、利用者がinit・旧構成のPlanを実行した。dev専用ドメインは `repo-sentinel-dev.prj.kupac.co.jp`。利用者のapplyで21リソースが作成され、Origin Request Policyのエラーで残りが未作成となった。原因を修正し、**4件追加・変更／削除0件の再apply用Planを保存済み。再applyと初期ユーザー作成は未実行。**
+2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。当初はinit前で停止し、その後、利用者がinit・旧構成のPlanを実行した。dev専用ドメインは `repo-sentinel-dev.prj.kupac.co.jp`。利用者のapplyで21リソースが作成され、Origin Request Policyのエラーで残りが未作成となった。原因を修正し、**4件追加・変更／削除0件の再apply用Planを保存済み。このエージェントによる再applyは未実行。その後、利用者が初期ユーザーを作成し、ローカルのReact/Hono認証を実装した。**
 
 | 項目 | 採用した設定 |
 |---|---|
@@ -67,7 +67,7 @@ State本文、既存のStateオブジェクト、IAM、Bucket Policy、Lifecycle
 
 `enable_runtime=true` はPhase 4の準備後に使う。API/Workerの読み取り可能なZIP、npm Layer ARN、許可Cognito sub、AWS予算額とメールの設定を必須とする。APIはNode.js 24 / timeout 15秒 / concurrency 2、WorkerはNode.js 24 / timeout 180秒 / concurrency 2、SQS mappingはbatch 1 / maximum concurrency 2。アプリ側の同時監査1件・日次回数・冪等性は別途実装・検証する。
 
-CognitoはESSENTIALS、自己登録禁止、TOTP MFA必須、OAuth Code Flow、client secretなし、外部IdPなし。初回から `https://repo-sentinel-dev.prj.kupac.co.jp/auth/callback` と `http://localhost:5173/auth/callback` を登録する。Logoutも同じ2オリジンを登録し、default redirectはdevのHTTPS URLとする。PKCE・JWT検証・許可sub認可は後続のアプリ実装で完成させる。
+CognitoはESSENTIALS、自己登録禁止、TOTP MFA必須、OAuth Code Flow、client secretなし、外部IdPなし。初回から `https://repo-sentinel-dev.prj.kupac.co.jp/auth/callback` と `http://localhost:5173/auth/callback` を登録する。Logoutも同じ2オリジンを登録し、default redirectはdevのHTTPS URLとする。PKCE・JWT検証・許可sub認可はローカルへ実装済み。本人のログインを確認し、TOTP登録状態は [Cognito仕様](../../docs/spec/cognito-auth.md) に検証範囲を記録する。
 
 初期ユーザーは後述のスクリプトで管理者作成し、パスワード変更・TOTP登録は本人がManaged Loginで行う。パスワードをTerraformへ渡さず、ユーザー作成後のsubを `allowed_user_sub` に設定する。OpenAIキーは `aws_secretsmanager_secret` の空コンテナだけを定義し、値は明示確認を伴う別のSecrets Manager操作で注入する。`aws_secretsmanager_secret_version` やキー値のTerraform変数は作成しない。
 
@@ -148,27 +148,27 @@ prodは別Terraformルート・別State・別リソースで構築する。既�
 
 管理者によるユーザー作成はAWS CLIスクリプトで揃え、本人のパスワード変更・TOTP登録はManaged Loginの画面で行う。GUIでユーザーを作成しても同じCognito APIを利用するため、作成手順の再現にはスクリプトを使用する。実装済みの契約・検証範囲は [初期ユーザー仕様](../../docs/spec/dev-user-bootstrap.md) を参照する。
 
-リポジトリルートで、まず読み取り確認を行う。AWS CLI v2・有効なSSOセッション・Terraform出力の読み取り・このリポジトリのNode.js/npm依存関係が必要。
+リポジトリルートで、まず読み取り確認を行う。AWS CLI v2・有効なSSOセッション・Terraform出力の読み取り・Node.js 24が必要。スクリプトはNode.jsで直接実行し、npm依存関係のインストールは不要。
 
 ```bash
-npm run cognito:user -- --email 'your-address@example.com'
+node scripts/create-dev-user.ts --email 'your-address@example.com'
 ```
 
 既定は読取だけ。未作成なら `action=would_create`、同じメールの既存ユーザーなら `action=exists` とsub・status・MFA登録状態を返す。作成を行うときだけ以下を実行する。この作業では実行していない。
 
 ```bash
-npm run cognito:user -- --email 'your-address@example.com' --create
+node scripts/create-dev-user.ts --email 'your-address@example.com' --create
 ```
 
 AWSが仮パスワードを生成して本人のメールへ招待を送る。初回は `action=created`、通常statusは `FORCE_CHANGE_PASSWORD`。返されたsubをdevの `terraform.tfvars` の `allowed_user_sub` に設定する。本人用メールアドレスは引数で指定し、パスワードは指定しない。profileを変更する場合は `--profile <name>` を追加できるが、アカウントとPoolはdev専用に制限する。
 
 再実行では既存ユーザーのパスワード・MFA・招待を変更しない。別ユーザーが存在するPoolへ2人目を追加しない。初期作成は1人の管理者が順番に実行する。招待期限切れ・配送失敗時の再送は、明示的な管理操作として別に行う。
 
-現在の仮パスワード有効期限は3日。初回ログインを進められる段階で作成し、Managed Loginで本パスワード（16文字以上・英大文字／小文字／数字／記号）への変更、認証アプリへのQR登録、6桁TOTPの確認まで続けて完了する。パスワードやTOTP秘密値をTerraform・このスクリプト・ログへ保存しない。ReactのCallback処理は未実装のため、アプリへのログイン完了確認は認証統合後に行う。
+現在の仮パスワード有効期限は3日。初回ログインを進められる段階で作成し、Managed Loginで本パスワード（16文字以上・英大文字／小文字／数字／記号）への変更、認証アプリへのQR登録、6桁TOTPの確認まで続けて完了する。パスワードやTOTP秘密値をTerraform・このスクリプト・ログへ保存しない。ReactのCallback・HonoのJWT検証は実装済み。`http://localhost:5173` から初回ログインを行い、監査画面へ戻ることを確認する。契約と検証範囲は [Cognito仕様](../../docs/spec/cognito-auth.md) を参照する。
 
 Phase 3では作成済みCognitoを使い、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。Phase 4のruntime有効化前には以下を完了する。
 
-- Cognito access tokenの署名・issuer・期限・client_id・token_use・許可sub検証、およびPOST本文ハッシュの生成。
+- 実装済みCognito認可とPOST本文ハッシュの生成をAWS経路で実検証する。
 - SQSハンドラーとownerSub検証、DynamoDBでの分散ロック・リース・永続AI予算管理、成否不明時の再試行抑制。
 - クリーン環境でZIPとnpm Layerを作成し、Layerの `/opt/nodejs/node_modules/npm/bin/npm-cli.js` を `NPM_CLI_PATH` で実行できるようWorkerを対応させる。現在のローカルnpm呼出しをそのままLambdaへ転用しない。
 - Secrets Managerへの専用devキー注入、AWS/OpenAIの利用制限、ログの秘密値非出力。

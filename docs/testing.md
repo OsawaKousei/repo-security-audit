@@ -1,6 +1,6 @@
 # 検証計画・受け入れ条件
 
-本文は全Phaseの検証条件を管理する。Phase 1の結果は[基本検証記録](spec/phase1-verification.md)、最新の実Worker・実AI確認は[Phase 2検証記録](spec/phase2-verification.md)を参照する。変更内容に応じて必要なテストを選ぶ。AWS固有の連携は実AWS devで確認する。
+本文は全Phaseの検証条件を管理する。Phase 1の結果は[基本検証記録](spec/phase1-verification.md)、実Worker・実AI確認は[Phase 2検証記録](spec/phase2-verification.md)、認証追加の検証は [Cognito仕様](spec/cognito-auth.md) を参照する。変更内容に応じて必要なテストを選ぶ。AWS固有の連携は実AWS devで確認する。
 
 ## 変更ごとの主な検証環境
 
@@ -95,11 +95,11 @@ PoCの完了条件は、以下の12項目で管理する。
 - [x] 監査履歴を閲覧できる。
 - [x] ローカルでWorkerをComposeから実行できる。
 - [ ] AWSでSQS → Lambdaが動作する。
-- [ ] Cognitoにより本人だけが利用できる。
+- [x] Cognitoにより本人だけが利用できる。
 - [x] 実行回数・API費用を制限できる。
 - [ ] TerraformでAWS環境を再構築できる。
 - [ ] 本番コードに認証バイパス・APIキーが含まれない。
 
-上のチェックはローカルPhase 2で確認した部分条件。実AIの費用制限はアプリの永続予約試験と専用Projectの設定済み回答が根拠であり、実上限到達試験ではない。AWS統合・認証・インフラ未完了のためPoC全体は未完了。
+上のチェックはローカルで確認した部分条件。実AIの費用制限はアプリの永続予約試験と専用Projectの設定済み回答が根拠であり、実上限到達試験ではない。Cognitoは本人操作で初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認し、不正JWT・許可外subの拒否は自動テストで確認した。認証のチェックもローカルReact/Honoとdev User Poolの接続範囲を示す。AWS統合・インフラ検証は残り、PoC全体は未完了。
 
 受け入れ結果を記録するときは実行環境、確認した条件、結果、残る制約を明記する。文書作成だけで実装・検証のチェックを完了扱いにしない。

@@ -50,6 +50,14 @@
 | AI-02 | 呼び出し前の保存・永続予約、同一ジョブ再予約禁止。timeout/不正出力/成否不明でも自動再試行しない | AWS用の共有予算管理・実行復旧はPhase 4 |
 | COST-01 | 公式のProject Hard spend limit手順を確認。利用者が専用Projectの月額$10強制停止設定済みと回答。アプリにも永続日次・月次制限 | 管理画面・管理APIでの設定値や実上限到達は独立検証していない。環境追加時に確認 |
 
+## Phase 3の認証で確定した扱い（2026-11-01）
+
+- API-05：access token・`token_use=access`・`client_id`・許可subを検証する。JWTは `X-Access-Token`、POST本文SHA-256は `X-Amz-Content-Sha256`。CloudFrontでの実疎通はPhase 4。
+- DEV-04：通常はCognito認証。PKCE照合状態だけをsessionStorageへ一時保存し、トークンはメモリ保持。明示的なLocal回帰テストだけbypassを残す。`/healthz` と認証対象の `/api/health` を分ける。
+- DATA-03：LocalのAPIとWorker CLIは `ALLOWED_USER_SUB` を使用し、旧local-userのデータは移行しない。実SQSの所有者解決・検証はPhase 4。
+
+実装と検証結果は [Cognito仕様](spec/cognito-auth.md) を正とする。本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰は確認済み。AWSアプリ統合は後続作業。
+
 ## Terraform準備で確認した扱い（2026-11-01）
 
 利用者指定でAWS profileは `kupacllc`、リージョンは `ap-northeast-1`、Stateは参照元と同じ既存バケットとする。devの公開URLは `repo-sentinel-dev.prj.kupac.co.jp`、本番用は `repo-sentinel.prj.kupac.co.jp`。指定済みus-east-1のワイルドカード証明書を利用し、bootstrap・証明書再発行は行わない。dev用Terraformは本番ドメインを拒否する。固定URLを初回からCognitoへ登録し、手動のURL転記やSSM追加は不要とする。

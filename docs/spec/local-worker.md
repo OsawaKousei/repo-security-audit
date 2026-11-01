@@ -1,5 +1,7 @@
 # Phase 2：Workerのローカル実装
 
+Phase 3で変更した認証・所有者・Lambda認可の契約は [Cognito仕様](cognito-auth.md) を参照する。以下のPhase 1/2時点の記録を優先しない。
+
 2026-11-01に実装・検証。実行・環境設定は[ローカル開発](../dev/local-development.md)、確認結果は[Phase 2検証記録](phase2-verification.md)を参照する。本書は[Phase 1仕様](local-basic.md)に対する追加・変更契約。Cognito、実SQS、Worker Lambda、AWSデプロイは後続Phase。
 
 ## 実行モードとジョブ

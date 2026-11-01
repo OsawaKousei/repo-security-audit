@@ -12,8 +12,9 @@
 | [Phase 2検証記録](phase2-verification.md) | 実API・自動テスト・画面確認の結果 |
 | [Terraform準備の検証記録](terraform-preparation.md) | dev基盤の部分適用・CloudFront修正・再apply前の検証 |
 | [dev初期ユーザー作成](dev-user-bootstrap.md) | 読み取り既定のCLI・作成条件・再実行時の保持・検証範囲 |
+| [Cognito認証](cognito-auth.md) | ReactのPKCE、HonoのJWT・本人認可、ローカル所有者、検証結果 |
 
-実認証・SQS・AWS統合は未実装。以前の5分野の計画は引き続き実装計画で管理する。
+Cognito認証はローカルへ実装し、本人の初回TOTP登録・ログアウト・再ログイン時のTOTP要求・監査画面への復帰を確認済み。SQSアプリ連携・AWS統合は後続作業。以前の5分野の計画は引き続き実装計画で管理する。
 
 ## 記載する内容
 

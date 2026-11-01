@@ -1,4 +1,5 @@
 import { z } from 'zod'
+export * from './auth.js'
 
 // Reject credentials, query strings, encoded paths and non-repository GitHub URLs.
 const owner = '[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?'
@@ -80,8 +81,8 @@ export const isActive = (audit: Audit) => audit.status === 'PENDING' || audit.st
 
 export class AuditError extends Error {
   code: string
-  status: 400 | 404 | 409 | 413 | 429 | 500 | 503
-  constructor(code: string, message: string, status: 400 | 404 | 409 | 413 | 429 | 500 | 503) {
+  status: 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503
+  constructor(code: string, message: string, status: 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503) {
     super(message)
     this.code = code
     this.status = status

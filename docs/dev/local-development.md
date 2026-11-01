@@ -1,6 +1,6 @@
 # ローカル開発環境
 
-Phase 2まで実装済み。基本契約は[Phase 1仕様](../spec/local-basic.md)、実監査・AI・費用制限の追加契約は[Worker仕様](../spec/local-worker.md)、最新検証は[Phase 2検証記録](../spec/phase2-verification.md)を参照する。
+Phase 2に加え、Phase 3のローカルCognito認証を実装済み。認証の契約・検証範囲は [Cognito仕様](../spec/cognito-auth.md) を参照する。基本契約は[Phase 1仕様](../spec/local-basic.md)、実監査・AI・費用制限の追加契約は[Worker仕様](../spec/local-worker.md)、最新検証は[Phase 2検証記録](../spec/phase2-verification.md)を参照する。
 
 ## ホストとコンテナの責務
 
@@ -17,7 +17,7 @@ docker compose up -d --wait
 
 Node.jsは `.node-version` の **24.22.2** と `node:24.22.2-bookworm-slim` に統一する。`setup:local` は現在のNodeバージョンを検査し、`.env` の `NODE_VERSION`・`LOCAL_UID`・`LOCAL_GID` を更新する。他の設定は保持する。`.env.example` は設定例であり、UID/GIDはホストに合わせる。
 
-ブラウザーで <http://localhost:5173> を開く。APIはloopbackの3000番ポート、Frontendは5173番ポートで公開する。コンテナ内の待受は `0.0.0.0`。Cognito導入前のローカル環境のため、外部公開用にポート・Proxy設定を変更しない。
+ブラウザーで <http://localhost:5173> を開く。APIはloopbackの3000番ポート、Frontendは5173番ポートで公開する。コンテナ内の待受は `0.0.0.0`。ローカルでもdev User Poolで本人認証する。保存先はLocalのまま維持し、外部公開用にポート・Proxy設定を変更しない。127.0.0.1:5173で開いた場合は登録済みCallbackのlocalhost:5173へ正規化する。
 
 ## 依存関係とソース共有
 
@@ -54,14 +54,36 @@ Composeは以下を明示設定する。シェルのAWS認証情報や `.env` �
 |---|---|
 | `APP_ENV` | `local` |
 | `NODE_ENV` | `development` |
-| `LOCAL_AUTH_BYPASS` | `true`。ローカルエントリーポイントだけが受け付ける |
+| `AUTH_MODE` | 通常 `cognito`。回帰テスト時だけ明示 `local-bypass` |
+| `LOCAL_AUTH_BYPASS` | 通常 `false`。`local-bypass` テスト時だけ `true` |
+| `COGNITO_ISSUER` / `COGNITO_CLIENT_ID` / `COGNITO_LOGIN_URL` | dev Terraformの公開出力 |
+| `ALLOWED_USER_SUB` | 管理者作成した本人ユーザーのUUID。メールアドレスは使用しない |
 | `AUDIT_MODE` | `mock`（既定）または `audit`（実GitHub/npm） |
 | `AI_MODE` | `mock`（既定）または `openai`。全体mockと実AIは組み合わせ不可 |
 | `MOCK_OUTCOME` | `success`（既定）または `failure` |
 | `DYNAMODB_ENDPOINT` | `http://dynamodb:8000` |
 | `DYNAMODB_TABLE` | `security-audit-jobs-local` |
 
-DynamoDB Local用のダミー認証情報はSDKクライアントで固定し、AWSの資格情報を探索しない。全体モックには外部キーは不要。実監査のGitHub認証は任意の `GITHUB_TOKEN`。実AIはWorkerだけに `OPENAI_API_KEY` と `OPENAI_HARD_LIMIT_CONFIRMED` を注入する。Frontend/APIはroot `.env` をread-onlyの `/dev/null` mountで隠し、キーを環境変数へ渡さない。Cognito設定はPhase 3。
+DynamoDB Local用のダミー認証情報はSDKクライアントで固定し、AWSの資格情報を探索しない。全体モックには外部キーは不要。実監査のGitHub認証は任意の `GITHUB_TOKEN`。実AIはWorkerだけに `OPENAI_API_KEY` と `OPENAI_HARD_LIMIT_CONFIRMED` を注入する。Frontend/APIはroot `.env` をread-onlyの `/dev/null` mountで隠し、キーを環境変数へ渡さない。Cognitoの公開識別子だけをAPI/Frontendへ渡す。
+
+## Cognitoの設定と初回ログイン
+
+既存 `.env` を維持したまま、以下を設定する。Issuer・Client ID・Login URLは `terraform -chdir=infra/terraform/environments/dev output` の該当値を使い、subは `node scripts/create-dev-user.ts --email <本人メール>` で確認する。これらは公開識別子で、APIキーやパスワードをVITE変数へ入れない。
+
+```dotenv
+AUTH_MODE=cognito
+LOCAL_AUTH_BYPASS=false
+COGNITO_ISSUER=https://cognito-idp.ap-northeast-1.amazonaws.com/<dev-pool-id>
+COGNITO_CLIENT_ID=<dev-client-id>
+COGNITO_LOGIN_URL=https://<dev-domain-prefix>.auth.ap-northeast-1.amazoncognito.com
+ALLOWED_USER_SUB=<本人ユーザーのsub>
+```
+
+Composeを起動し、`http://localhost:5173` の「ログイン」から進む。初回の仮パスワードは3日有効。本パスワードへの変更と認証アプリのTOTP登録を完了し、監査画面へ戻ることを確認する。パスワードや認証コードを設定ファイル・ログへ保存しない。
+
+トークンはメモリ保持のため、再読み込み後はログインボタンから再認証する。PKCE照合用の一時stateだけをsessionStorageに保存する。API 401・期限切れはログイン画面、403は許可外ユーザーの表示へ戻す。ログアウトはCognitoのセッションも終了する。
+
+healthcheckは認証不要の `/healthz`。アプリの `/api/health` は認証・本人認可が必要で、トークンなしの401は正常。通常APIではID TokenやAuthorizationヘッダーでなく、検証対象のaccess tokenを `X-Access-Token` へ付ける。Frontendが自動で付けるため、手動でトークンをコピーしない。
 
 失敗画面の確認：
 
@@ -89,7 +111,7 @@ docker compose run --rm worker \
   npm run audit:local -w workers/security-audit/app -- <job-id>
 ```
 
-所有者は固定 `local-user`。全体モックではAPIも同じ処理を実行するため、競合・完了済みジョブは処理を重複させない。実監査はCLIだけが実行する。CLIのモードは保存されたジョブと一致させる。不正設定・不存在・FAILED・未完了は非ゼロ終了。処理後の状態をJSON表示する。
+通常の所有者は `ALLOWED_USER_SUB`。APIもWorker CLIも同じCognito subを使い、従来の `local-user` データは自動移行しない。全体モックではAPIも同じ処理を実行するため、競合・完了済みジョブは処理を重複させない。実監査はCLIだけが実行する。CLIのモードは保存されたジョブと一致させる。不正設定・不存在・FAILED・未完了は非ゼロ終了。処理後の状態をJSON表示する。
 
 既存IDは作成から180秒の期限内に実行する。実監査は次の作成・実行コマンドが使える。
 
@@ -137,15 +159,22 @@ API自身は実AIを呼ばず、キーも保持しない。既存のモック・
 
 ```bash
 docker compose run --rm worker npm run test:integration
-npx playwright install chromium
-npm run test:e2e
+PLAYWRIGHT_BROWSERS_PATH=.playwright npx playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=.playwright npm run test:e2e
 npm run build
 npm run build:clean
 ```
 
-統合テストはUUIDを含む専用Localテーブルを作成・削除する。E2Eは起動済みComposeを使用し、ローカルユーザーの監査枠を1回消費する。ブラウザーのシステム依存が必要な場合はPlaywrightの案内に従う。
+統合テストはUUIDを含む専用Localテーブルを作成・削除する。通常のE2EはCognito構成のComposeを使用し、OIDC・API応答をブラウザー内でモックする。本人のパスワードや実Cognitoトークンは使用しない。従来のモック監査E2Eは、本人の実ログイン確認中でない専用の回帰テスト時間帯に、次の明示設定で実行する。
+```bash
+AUTH_MODE=local-bypass LOCAL_AUTH_BYPASS=true AUDIT_MODE=mock AI_MODE=mock docker compose up -d --wait api frontend
+E2E_AUTH_MODE=local-bypass PLAYWRIGHT_BROWSERS_PATH=.playwright npm run test:e2e
+AUTH_MODE=cognito LOCAL_AUTH_BYPASS=false docker compose up -d --wait api frontend
+```
 
-`build:clean` はホストの `node_modules`・既存 `dist`・秘密情報をコピーせず、一時ディレクトリで `npm ci` とビルドを実行する。出力は検証後に削除する。APIの `dist/lambda.js` は認証未実装のため拒否するスタブであり、AWSデプロイ成果物の完成を意味しない。npm監査用のComposeランタイムはPhase 2で確認済み。Lambda側のnpm配置・SQS・AWS統合は後続Phaseで検証する。
+このモック監査E2Eは `local-user` の監査枠を1回消費する。bypassは開発ビルド・loopback・明示設定時だけに限定し、通常起動では使わない。ブラウザーのシステム依存が必要な場合はPlaywrightの案内に従う。
+
+`build:clean` はホストの `node_modules`・既存 `dist`・秘密情報をコピーせず、一時ディレクトリで `npm ci` とビルドを実行する。出力は検証後に削除する。APIのCognito認可factoryは実装済みだが、`dist/lambda.js` の既定handlerはAWS storage/queue未設定として503を返す。AWSデプロイ成果物の完成を意味しない。npm監査用のComposeランタイムはPhase 2で確認済み。Lambda側のnpm配置・SQS・AWS統合は後続Phaseで検証する。
 
 ```bash
 docker compose down

@@ -2,7 +2,7 @@
 
 本書は認証・外部入力・秘密情報・費用制限の基準を定める。ローカル開発環境の変更によってこれらの要件を緩和しない。
 
-Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。Phase 2の外部入力・秘密情報・実AI・永続費用台帳は[Worker仕様](spec/local-worker.md)に実装済みの境界を記録した。Cognito・AWS要件は後続Phase。
+Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。Phase 2の外部入力・秘密情報・実AI・永続費用台帳は[Worker仕様](spec/local-worker.md)に実装済みの境界を記録した。ローカルCognito認証は [Phase 3仕様](spec/cognito-auth.md) に実装済みの範囲と検証限界を記録した。AWSアプリ統合は後続Phase。
 
 ## Cognito認証とユーザー認可
 
@@ -24,9 +24,9 @@ HonoはAPIリクエストごとにJWTを検証する。
 | Client ID | 対象App Clientと一致 |
 | `sub` | 許可済みユーザーの `sub` と一致 |
 
-ログイン済みでも許可 `sub` と一致しなければ拒否する。JWTを検証できない場合も拒否する。Token Useの具体値と対応claimは[未確定事項](decisions.md)で確定する。
+ログイン済みでも許可 `sub` と一致しなければ拒否する。JWTを検証できない場合も拒否する。Phase 3ではaccess tokenを採用し、`token_use=access`・`client_id`を検証する。ID TokenはAPI認可に使用しない。
 
-Frontendはトークンを可能な限りメモリに保持し、永続ストレージ保存を避ける。認証バイパスは初期実装時のlocalhost限定とし、Cognito導入後はローカルでも実認証を基本とする。AWS dev/prodに認証バイパスを入れない。
+Frontendはトークンを可能な限りメモリに保持し、永続ストレージ保存を避ける。認証バイパスは初期実装時のlocalhost限定とし、Cognito導入後はローカルでも実認証を基本とする。回帰テスト用の明示bypassは開発ビルド・loopback・localエントリーポイントに限定し、通常のCognito設定と併用しない。AWS dev/prodに認証バイパスを入れない。
 
 ## CloudFront・Lambda・S3
 
@@ -37,7 +37,7 @@ Frontendはトークンを可能な限りメモリに保持し、永続ストレ
 - CloudFrontからのオリジンアクセスを適切に制限する。
 - LambdaのIAMロールは最小権限とする。
 
-CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` などの専用ヘッダーで転送する。POSTは `x-amz-content-sha256` を設定する。最終的なヘッダー・転送契約は[API仕様](plan/implementation-plan.md#api)で管理する。
+CloudFrontがFunction URLへSigV4署名するため、JWTは `X-Access-Token` などの専用ヘッダーで転送する。POSTは `x-amz-content-sha256` を設定する。Phase 3では `X-Access-Token` を採用し、FrontendがPOST本文のSHA-256を設定する。ローカルの契約は [Cognito仕様](spec/cognito-auth.md)、CloudFront/Lambda経由の実検証はPhase 4で管理する。
 
 ## 外部リポジトリ・子プロセス
 

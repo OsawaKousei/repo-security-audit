@@ -14,6 +14,7 @@ import { mockResult } from '../workers/security-audit/app/src/mock.js'
 import { createApp } from '../api/app/src/app.js'
 import { machine, manifest, lockfile, aiOutput } from './fixtures/worker.js'
 import { validateAiReport } from '../workers/security-audit/app/src/ai-report.js'
+import { signedTestToken, testCognitoAuthorizer, testSub } from './fixtures/cognito.js'
 
 const config = localConfig()
 const table = `security-audit-test-${randomUUID()}-local`
@@ -27,6 +28,24 @@ const instant = { wait: async () => {} }
 let budgetDirectory: string
 before(async () => { await ensureTable(client, table); budgetDirectory = await mkdtemp(join(tmpdir(), 'repo-sentinel-integration-budget-')) })
 after(async () => { try { await client.send(new DeleteTableCommand({ TableName: table })); await rm(budgetDirectory, { recursive: true, force: true }) } finally { client.destroy() } })
+
+test('signed Cognito access token → owner-bound local job → Worker → history', async () => {
+  const api = createApp({ store, authorize: testCognitoAuthorizer() })
+  const create = (jwt?: string) => api.request('/api/audits', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(jwt ? { 'X-Access-Token': jwt } : {}) },
+    body: JSON.stringify({ repositoryUrl: 'https://github.com/example/authenticated-flow' }) })
+  assert.equal((await create()).status, 401)
+  assert.equal((await create(signedTestToken({ token_use: 'id' }))).status, 401)
+  assert.equal((await create(signedTestToken({ sub: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee' }))).status, 403)
+  const response = await create(signedTestToken())
+  assert.equal(response.status, 202)
+  const { jobId } = await response.json()
+  assert.ok(await store.get(testSub, jobId))
+  assert.equal(await store.get('local-user', jobId), undefined)
+  await createMockRunner(store, instant)(jobId, testSub)
+  const detail = await api.request(`/api/audits/${jobId}`, { headers: { 'X-Access-Token': signedTestToken() } })
+  assert.equal((await detail.json()).status, 'COMPLETED')
+})
 
 test('API create → mock Worker → persisted report and owner isolation', async () => {
   const api = app('flow')

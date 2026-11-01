@@ -20,7 +20,7 @@ describe('repository input', () => {
   })
 })
 
-const env = { APP_ENV: 'local', NODE_ENV: 'development', LOCAL_AUTH_BYPASS: 'true', AUDIT_MODE: 'mock', DYNAMODB_ENDPOINT: 'http://dynamodb:8000' }
+const env = { APP_ENV: 'local', NODE_ENV: 'development', AUTH_MODE: 'local-bypass', LOCAL_AUTH_BYPASS: 'true', AUDIT_MODE: 'mock', DYNAMODB_ENDPOINT: 'http://dynamodb:8000' }
 describe('local-only execution', () => {
   it('requires explicit local mock settings', () => {
     expect(localConfig(env).tableName).toBe('security-audit-jobs-local')
@@ -29,6 +29,14 @@ describe('local-only execution', () => {
   it('supports explicit local audit and AI modes without accepting AWS execution', () => {
     expect(localConfig({ ...env, AUDIT_MODE: 'audit', AI_MODE: 'openai' })).toMatchObject({ mode: 'audit', aiMode: 'openai' })
     expect(() => localConfig({ ...env, AI_MODE: 'openai' })).toThrow()
+  })
+  it('uses the allowed Cognito sub in normal local development', () => {
+    const cognito = { ...env, AUTH_MODE: 'cognito', LOCAL_AUTH_BYPASS: 'false',
+      COGNITO_ISSUER: 'https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_TestPool',
+      COGNITO_CLIENT_ID: 'testclient', ALLOWED_USER_SUB: '11111111-2222-4333-8444-555555555555' }
+    expect(localConfig(cognito)).toMatchObject({ authMode: 'cognito', ownerSub: cognito.ALLOWED_USER_SUB })
+    expect(() => localConfig({ ...cognito, LOCAL_AUTH_BYPASS: 'true' })).toThrow()
+    expect(() => localConfig({ ...cognito, ALLOWED_USER_SUB: 'local-user' })).toThrow()
   })
   it.each([
     { APP_ENV: 'dev' }, { APP_ENV: 'prod' }, { NODE_ENV: 'production' }, { LOCAL_AUTH_BYPASS: 'false' },

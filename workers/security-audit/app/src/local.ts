@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ulid } from 'ulid'
 import { AuditError, createAuditSchema, jobIdSchema, repositoryFromUrl } from '@repo-sentinel/core'
-import { DynamoAuditStore, dynamoClient, ensureTable, localConfig, LOCAL_OWNER } from '@repo-sentinel/aws'
+import { DynamoAuditStore, dynamoClient, ensureTable, localConfig } from '@repo-sentinel/aws'
 import { createAuditRunner, createMockRunner } from './audit.js'
 
 async function main() {
@@ -24,12 +24,12 @@ async function main() {
   try {
     await ensureTable(client, config.tableName)
     const store = new DynamoAuditStore(client, config.tableName)
-    if (repository) await store.create(LOCAL_OWNER, {
+    if (repository) await store.create(config.ownerSub, {
       jobId, repository, status: 'PENDING', mode: config.mode, aiMode: config.aiMode,
       createdAt: new Date().toISOString(), attemptCount: 0,
     })
-    const audit = await store.get(LOCAL_OWNER, jobId)
-    if (!audit) throw new AuditError('NOT_FOUND', 'Job not found for local user.', 404)
+    const audit = await store.get(config.ownerSub, jobId)
+    if (!audit) throw new AuditError('NOT_FOUND', 'Job not found for the configured owner.', 404)
     if (audit.mode !== config.mode || (audit.aiMode ?? 'mock') !== config.aiMode) throw new AuditError('MODE_MISMATCH', 'Worker mode must match the stored job.', 409)
     console.log(JSON.stringify({ jobId, repository: audit.repository, mode: audit.mode, aiMode: audit.aiMode ?? 'mock' }))
     const runner = config.mode === 'mock' ? createMockRunner(store, { outcome: config.outcome }) : createAuditRunner(store, {
@@ -37,8 +37,8 @@ async function main() {
       hardLimitConfirmed: process.env.OPENAI_HARD_LIMIT_CONFIRMED === 'true',
       budgetDirectory: process.env.AI_BUDGET_DIR ?? resolve(fileURLToPath(new URL('../../../../', import.meta.url)), '.local/ai-usage'),
     })
-    await runner(jobId, LOCAL_OWNER)
-    const result = await store.get(LOCAL_OWNER, jobId)
+    await runner(jobId, config.ownerSub)
+    const result = await store.get(config.ownerSub, jobId)
     console.log(JSON.stringify(result))
     if (result?.status !== 'COMPLETED') process.exitCode = 1
   } finally { client.destroy() }

@@ -15,10 +15,11 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@repo-sentinel/core": "0.0.0",
-    "@repo-sentinel/aws": "0.0.0",
-    "@repo-sentinel/worker": "0.0.0",
     "@hono/node-server": "^2.1.5",
+    "@repo-sentinel/aws": "0.0.0",
+    "@repo-sentinel/core": "0.0.0",
+    "@repo-sentinel/worker": "0.0.0",
+    "aws-jwt-verify": "5.2.1",
     "hono": "^4.13.14",
     "ulid": "^3.0.0"
   }

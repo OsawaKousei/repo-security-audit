@@ -26,8 +26,11 @@ type Pool = {
 }
 
 export class CommandError extends Error {
-  constructor(readonly code: string, program: string = 'aws') {
+  readonly code: string
+
+  constructor(code: string, program: string = 'aws') {
     super(`${program} failed (${code}). Check your CLI session and permissions; no automatic retry was performed.`)
+    this.code = code
   }
 }
 
@@ -122,7 +125,7 @@ async function main() {
     create: { type: 'boolean', default: false }, help: { type: 'boolean', default: false },
   } })
   if (values.help) {
-    console.log('Usage: npm run cognito:user -- --email <your-email> [--profile kupacllc] [--create]\nDefault: read-only check. --create creates a missing dev user and sends one invitation email.\nExisting users are only read; passwords, MFA, and invitations are never reset or resent.')
+    console.log('Usage: node scripts/create-dev-user.ts --email <your-email> [--profile kupacllc] [--create]\nRequires Node.js 24, AWS CLI, and Terraform. No npm dependencies are required.\nDefault: read-only check. --create creates a missing dev user and sends one invitation email.\nExisting users are only read; passwords, MFA, and invitations are never reset or resent.')
     return
   }
   if (!values.email) throw new Error('--email is required. Use --help for usage.')

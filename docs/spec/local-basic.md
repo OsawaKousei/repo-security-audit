@@ -1,5 +1,7 @@
 # Phase 1：ローカルの基本実装
 
+Phase 3で変更した認証・所有者・Lambda認可の契約は [Cognito仕様](cognito-auth.md) を参照する。以下のPhase 1/2時点の記録を優先しない。
+
 対象はlocalhostでのFrontend → Hono API → DynamoDB Local → Mock Worker → レポート表示。2026-11-01に実装・検証。確認根拠は[検証記録](phase1-verification.md)。本書の契約はPhase 1に限定する。実認証・GitHub取得・npm audit・実AI・AWSキューは未実装。
 
 Phase 2による追加・変更は[Worker仕様](local-worker.md)を優先する。本書はPhase 1実装時点の基本契約を記録する。

@@ -3,6 +3,7 @@ import { createAuditSchema, isActive, type Audit, type History } from '@repo-sen
 import { createAudit, getAudit, getHealth, getHistory } from './api'
 import { usePolling } from './use-polling'
 import './App.css'
+import { useAuth } from './auth-context'
 
 const labels = { PENDING: '待機中', RUNNING: '実行中', COMPLETED: '完了', FAILED: '失敗' }
 const date = (value: string) => new Date(value).toLocaleString('ja-JP')
@@ -108,6 +109,7 @@ function DetailPage({ id }: { id: string }) {
   </>
 }
 function App() {
+  const auth = useAuth()
   const [hash, setHash] = useState(window.location.hash)
   const health = usePolling(getHealth, noPolling)
   useEffect(() => {
@@ -117,7 +119,7 @@ function App() {
   }, [])
   const [path, query] = (hash.slice(1) || '/').split('?')
   const detail = /^\/audits\/([^/]+)$/.exec(path)
-  return <><header><a className="brand" href="#/">◈ <span>Repo Sentinel</span></a><nav aria-label="メインナビゲーション"><a href="#/" aria-current={path === '/' ? 'page' : undefined}>監査を開始</a><a href="#/audits" aria-current={path.startsWith('/audits') ? 'page' : undefined}>監査履歴</a></nav><span className="local-badge">{health.data?.mode === 'audit' ? 'LOCAL AUDIT' : 'LOCAL MOCK'}</span></header>
+  return <><header><a className="brand" href="#/">◈ <span>Repo Sentinel</span></a><nav aria-label="メインナビゲーション"><a href="#/" aria-current={path === '/' ? 'page' : undefined}>監査を開始</a><a href="#/audits" aria-current={path.startsWith('/audits') ? 'page' : undefined}>監査履歴</a></nav><span className="local-badge">{auth.mode === 'cognito' ? '開発環境 · COGNITO' : health.data?.mode === 'audit' ? 'LOCAL AUDIT' : 'LOCAL MOCK'}</span>{auth.mode === 'cognito' && <button className="secondary logout" onClick={() => { void auth.logout() }}>ログアウト</button>}</header>
     <main><aside className="notice">監査開始の設定：{health.data?.mode === 'audit' ? '実監査（Worker直接実行）' : 'ローカルモック'}。各レポートに実監査・モックとAI説明の種類を表示します。</aside>
       {health.error && <ErrorNotice message={health.error} retry={health.retry} />}
       {path === '/' ? health.data ? <StartAudit mode={health.data.mode} /> : !health.error && <p role="status">読み込み中…</p> : path === '/audits' ? <HistoryPage key={hash} cursor={new URLSearchParams(query).get('cursor') ?? undefined} /> : detail ? <DetailPage key={detail[1]} id={detail[1]} /> : <ErrorNotice message="ページが見つかりません。" />}

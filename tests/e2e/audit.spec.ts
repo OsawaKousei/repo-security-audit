@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('start an audit, poll to completion, reload the report and open history', async ({ page }) => {
+  test.skip(process.env.E2E_AUTH_MODE !== 'local-bypass', 'Run explicitly against the local-bypass Compose regression configuration.')
   await page.goto('/')
   await expect(page.getByText('LOCAL MOCK', { exact: true })).toBeVisible()
   await page.getByLabel('GitHubリポジトリURL').fill('https://github.com/example/browser-test')

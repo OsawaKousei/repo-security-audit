@@ -10,7 +10,7 @@ AWSリソースはTerraformで管理する。ローカル開発環境の変更�
 
 dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。その後、利用者がinitを実行し、固定devドメイン構成でvalidate・モックテスト・Planを確認した。利用者のapplyは21リソース作成後にCloudFrontのOrigin Request Policyエラーで中断した。定義を修正し、4件追加・変更／削除0件の再apply用Planを保存済み。再applyは未実行。
 
-初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。CognitoのCallback／Logoutには初回からdev用HTTPS URLとlocalhostを登録し、生成URLの転記は行わない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。初期ユーザーは `npm run cognito:user` の読取既定・明示作成の手順で準備する。具体的な切替条件・確認結果は上記READMEを参照する。
+初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。CognitoのCallback／Logoutには初回からdev用HTTPS URLとlocalhostを登録し、生成URLの転記は行わない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。初期ユーザーは `node scripts/create-dev-user.ts` の読取既定・明示作成の手順で準備する。具体的な切替条件・確認結果は上記READMEを参照する。
 
 ## 管理対象
 
