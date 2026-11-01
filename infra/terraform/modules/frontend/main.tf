@@ -55,22 +55,6 @@ resource "aws_cloudfront_origin_access_control" "api" {
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
 }
-resource "aws_cloudfront_origin_request_policy" "api" {
-  name = "${var.name}-api"
-  cookies_config {
-    cookie_behavior = "none"
-  }
-  query_strings_config {
-    query_string_behavior = "all"
-  }
-  headers_config {
-    header_behavior = "whitelist"
-    headers {
-      items = ["Content-Type", "X-Access-Token", "X-Amz-Content-Sha256"]
-    }
-  }
-}
-
 # Until the AWS runtime is deliberately enabled, API requests fail closed.
 resource "aws_cloudfront_function" "api_unavailable" {
   name    = "${var.name}-api-unavailable"
@@ -136,14 +120,17 @@ resource "aws_cloudfront_distribution" "this" {
   dynamic "ordered_cache_behavior" {
     for_each = ["/api", "/api/*"]
     content {
-      path_pattern             = ordered_cache_behavior.value
-      target_origin_id         = var.api_enabled ? "api" : "frontend"
-      viewer_protocol_policy   = "https-only"
-      allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-      cached_methods           = ["GET", "HEAD"]
-      compress                 = true
-      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-      origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
+      path_pattern           = ordered_cache_behavior.value
+      target_origin_id       = var.api_enabled ? "api" : "frontend"
+      viewer_protocol_policy = "https-only"
+      allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cached_methods         = ["GET", "HEAD"]
+      compress               = true
+      cache_policy_id        = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+      # AWS-managed AllViewerExceptHostHeader supports Lambda function URL
+      # origins without individually listing restricted X-Amz-* headers.
+      # OAC signs Authorization; the application's JWT uses X-Access-Token.
+      origin_request_policy_id = var.api_enabled ? "b689b0a8-53d0-40ab-baf2-68738e2966ac" : null
       dynamic "function_association" {
         for_each = var.api_enabled ? [] : [true]
         content {

@@ -1,6 +1,6 @@
 # Terraformの準備状況
 
-2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。当初はinit前で停止し、その後、利用者がinit・旧構成のPlanを実行した。現在は利用者の指示でdev専用ドメイン `repo-sentinel-dev.prj.kupac.co.jp` に設定し、validate・モックテスト・Planまで確認済み。**applyは未実行。アプリケーション用リソースは未作成。**
+2026-11-01に、参照構成 `ref/apt-repo/infra/apt-repo` に合わせてdev向けTerraform定義を作成した。当初はinit前で停止し、その後、利用者がinit・旧構成のPlanを実行した。dev専用ドメインは `repo-sentinel-dev.prj.kupac.co.jp`。利用者のapplyで21リソースが作成され、Origin Request Policyのエラーで残りが未作成となった。原因を修正し、**4件追加・変更／削除0件の再apply用Planを保存済み。再applyと初期ユーザー作成は未実行。**
 
 | 項目 | 採用した設定 |
 |---|---|
@@ -35,7 +35,7 @@ SSO復旧後、指定profileで以下を確認した。dev専用ドメインへ�
 | S3 default encryption | AES256 |
 | S3 Versioning | 事前は未設定。承認後にEnabledへ変更し、APIで確認済み |
 
-## 実施したAWS変更
+## 手動で実施した共有Stateの変更
 
 利用者の「では実装してください」を受け、指定アカウントをSTSで再確認し、S3ロックファイルが存在しないことを確認してから、既存共有バケットのVersioningだけを有効化した。
 
@@ -69,9 +69,9 @@ State本文、既存のStateオブジェクト、IAM、Bucket Policy、Lifecycle
 
 CognitoはESSENTIALS、自己登録禁止、TOTP MFA必須、OAuth Code Flow、client secretなし、外部IdPなし。初回から `https://repo-sentinel-dev.prj.kupac.co.jp/auth/callback` と `http://localhost:5173/auth/callback` を登録する。Logoutも同じ2オリジンを登録し、default redirectはdevのHTTPS URLとする。PKCE・JWT検証・許可sub認可は後続のアプリ実装で完成させる。
 
-初期ユーザーの作成とパスワード設定は管理操作で行い、パスワードをTerraformへ渡さない。ユーザー作成後のsubを `allowed_user_sub` に設定する。OpenAIキーは `aws_secretsmanager_secret` の空コンテナだけを定義し、値は明示確認を伴う別のSecrets Manager操作で注入する。`aws_secretsmanager_secret_version` やキー値のTerraform変数は作成しない。
+初期ユーザーは後述のスクリプトで管理者作成し、パスワード変更・TOTP登録は本人がManaged Loginで行う。パスワードをTerraformへ渡さず、ユーザー作成後のsubを `allowed_user_sub` に設定する。OpenAIキーは `aws_secretsmanager_secret` の空コンテナだけを定義し、値は明示確認を伴う別のSecrets Manager操作で注入する。`aws_secretsmanager_secret_version` やキー値のTerraform変数は作成しない。
 
-API経路はキャッシュ無効、JWTヘッダー `X-Access-Token` と `X-Amz-Content-Sha256` を転送し、CloudFront OACのSigV4認証と分ける。Lambdaのリソースポリシーは当該Distributionだけに `InvokeFunctionUrl` と、Function URL経由の `InvokeFunction` を許可する。Workerだけが対象Secretを読み取れる。
+API経路はキャッシュ無効とする。runtime有効時はAWS管理の [AllViewerExceptHostHeader](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#managed-origin-request-policy-all-viewer-except-host-header)（`b689b0a8-53d0-40ab-baf2-68738e2966ac`）を参照する。Hostをオリジンのものへ置換し、ほかのviewerヘッダー・cookie・queryを転送する。OACがAuthorizationを署名で置換し、アプリのJWTは `X-Access-Token` で受け取る。POST/PUTの `X-Amz-Content-Sha256` 要件は維持する。runtime無効時はOrigin Request Policyを付けず、viewer requestのFunctionで503を返す。Lambdaのリソースポリシーは当該Distributionだけに `InvokeFunctionUrl` と、Function URL経由の `InvokeFunction` を許可する。Workerだけが対象Secretを読み取れる。
 
 CloudWatchはDLQ件数1以上・Queue最古600秒以上を定義し、runtime有効時はLambda ErrorsとWorker Duration 170秒以上も監視する。`budget_monthly_usd` と `budget_email` を両方設定するとAWS予算の80%/100%実績通知とSNSメール購読を作成する。購読確認、Projectタグのコスト配分タグ有効化はapply後の管理作業。未設定時のCloudWatch Alarmは通知先なしであり、AWS予算も作成しない。AWS予算は通知であり、実行の強制停止ではない。
 
@@ -102,13 +102,19 @@ CloudWatchはDLQ件数1以上・Queue最古600秒以上を定義し、runtime有
 
 共有バケットを所有する別のIaC構成、各CIの個別IAM制約、外部の清掃スクリプト・自動実行スケジュールは未確認。有効化により既存IaCとの設定差分が発生するか、通常DELETEで完全消去することを前提にした運用がないかは、管理元で確認する。この評価の後に利用者が承認し、Versioningのみ有効化した。
 
+## 部分applyの確認と修正
+
+利用者のapply後、Terraform StateとAWSを読み取り、21リソースが作成済みであることを確認した。Cognitoは自己登録禁止・TOTP必須・User Poolのユーザー0人。DynamoDBはACTIVE、SQSは暗号化・Visibility 1,080秒・maxReceiveCount 2、Secretは値未設定だった。
+
+CloudTrailの `CreateOriginRequestPolicy` には `InvalidArgument: The parameter Headers contains X-Amz-Content-Sha256 that is not allowed.` が記録されていた。カスタムポリシーの個別ヘッダー指定を削除し、runtime有効時には前述のAWS管理ポリシーを参照する。管理ポリシーの実在・Host除外・cookie/query全転送をAWS APIで読み取り確認済み。
+
 ## 検証と現在の境界
 
-dev専用ドメイン構成で `terraform fmt -check -recursive infra/terraform`、`terraform validate`、モックProviderによる `terraform test` の4ケースが成功。固定dev URLと初回からのCallback登録、本番ドメイン・CloudFront標準ドメイン・prod環境の指定拒否を検証した。
+`terraform fmt -check -recursive infra/terraform`、`terraform validate` が成功。モックProviderによる `terraform test` は6ケースが成功し、dev URL・本番設定拒否に加え、runtime無効時の転送ポリシーなし、有効時の管理ポリシーとキャッシュ無効を検証した。初期ユーザースクリプトを含む全95テスト、型チェック、ESLintも成功。
 
-実AWSに対するPlanを再生成し、**26件追加・変更0件・削除0件**を確認した。PlanのJSONでもdev用A/AAAA・CloudFront Alias・指定証明書・TLSポリシー・CognitoのCallback／Logout／default redirectの整合を確認した。既存Stateバケット・本番DNS・証明書の作成や更新は含まれない。アプリケーション・CloudFront Functionsのコードは今回変更していない。
+保存済みの再apply用Planは **4件追加・変更0件・削除0件**。追加対象はCloudFront Distribution、dev DNSのA/AAAA、Frontend S3 Bucket Policyだけ。既存21リソースはno-op。カスタムOrigin Request Policyは未作成だったため、削除も発生しない。Plan JSONでdev用Alias・TLS・APIの503経路と未稼働時の転送ポリシーなしを確認した。
 
-`.terraform` と `.terraform.lock.hcl` は利用者のinitで生成済み。AWS Providerは6.69.1で固定している。AWSへのapply・実配信・実Cognitoログインは未検証。初期準備時のHCL静的検査、npmの型チェック・ESLint・全86テストの記録は [検証記録](../../docs/spec/terraform-preparation.md) を参照する。
+`.terraform` と `.terraform.lock.hcl` は初期化済み。AWS Providerは6.69.1で固定。テスト用のローカルmodule情報を更新する際も `init -backend=false -lockfile=readonly` で既存ロックを維持した。再apply・実配信・Lambda経由POST/PUT・実Cognitoログイン・初期ユーザー作成は未検証。Planとモックテストの成功を実配信の成功とは扱わない。詳細は [検証記録](../../docs/spec/terraform-preparation.md) を参照する。
 
 ## ドメインと認証URLの管理
 
@@ -118,9 +124,9 @@ dev専用ドメイン構成で `terraform fmt -check -recursive infra/terraform`
 
 固定URLを初回からCognitoへ渡せるため、生成されたCloudFront URLの手動転記やCallback登録のための再applyは不要。`cognito_frontend_domain` 変数と2段階登録手順は削除した。APIは従来のCognito環境変数方式を維持し、SSMによる認証設定取得は追加していない。
 
-## 次の手順
+## 再applyの手順
 
-**本番URLやCloudFront標準URLを前提とした古いPlanを適用しない。** `environments/dev/dev.tfplan` は固定devドメイン構成で再生成済み。設定変更時は必ずPlanを作り直す。
+**本番URLやCloudFront標準URLを前提とした古いPlanを適用しない。** `environments/dev/dev.tfplan` はOrigin Request Policy修正後の構成で再生成済み。設定変更時は必ずPlanを作り直す。
 
 ```bash
 terraform -chdir=infra/terraform/environments/dev validate
@@ -128,7 +134,7 @@ terraform -chdir=infra/terraform/environments/dev test
 terraform -chdir=infra/terraform/environments/dev plan -out=dev.tfplan
 ```
 
-Planで26件追加・変更／削除0件とdev用URLを確認し、明示承認後にapplyする。ここでは実行していない。
+Planで4件追加・変更／削除0件とdev用URLを確認し、明示承認後にapplyする。ここでは再applyを実行していない。
 
 ```bash
 terraform -chdir=infra/terraform/environments/dev apply dev.tfplan
@@ -138,7 +144,29 @@ terraform -chdir=infra/terraform/environments/dev output cognito_callback_urls
 
 prodは別Terraformルート・別State・別リソースで構築する。既存devのURLやStateを本番へ流用しない。
 
-Phase 3でCognitoを構築し、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。Phase 4のruntime有効化前には以下を完了する。
+## 初期ユーザーの準備
+
+管理者によるユーザー作成はAWS CLIスクリプトで揃え、本人のパスワード変更・TOTP登録はManaged Loginの画面で行う。GUIでユーザーを作成しても同じCognito APIを利用するため、作成手順の再現にはスクリプトを使用する。実装済みの契約・検証範囲は [初期ユーザー仕様](../../docs/spec/dev-user-bootstrap.md) を参照する。
+
+リポジトリルートで、まず読み取り確認を行う。AWS CLI v2・有効なSSOセッション・Terraform出力の読み取り・このリポジトリのNode.js/npm依存関係が必要。
+
+```bash
+npm run cognito:user -- --email 'your-address@example.com'
+```
+
+既定は読取だけ。未作成なら `action=would_create`、同じメールの既存ユーザーなら `action=exists` とsub・status・MFA登録状態を返す。作成を行うときだけ以下を実行する。この作業では実行していない。
+
+```bash
+npm run cognito:user -- --email 'your-address@example.com' --create
+```
+
+AWSが仮パスワードを生成して本人のメールへ招待を送る。初回は `action=created`、通常statusは `FORCE_CHANGE_PASSWORD`。返されたsubをdevの `terraform.tfvars` の `allowed_user_sub` に設定する。本人用メールアドレスは引数で指定し、パスワードは指定しない。profileを変更する場合は `--profile <name>` を追加できるが、アカウントとPoolはdev専用に制限する。
+
+再実行では既存ユーザーのパスワード・MFA・招待を変更しない。別ユーザーが存在するPoolへ2人目を追加しない。初期作成は1人の管理者が順番に実行する。招待期限切れ・配送失敗時の再送は、明示的な管理操作として別に行う。
+
+現在の仮パスワード有効期限は3日。初回ログインを進められる段階で作成し、Managed Loginで本パスワード（16文字以上・英大文字／小文字／数字／記号）への変更、認証アプリへのQR登録、6桁TOTPの確認まで続けて完了する。パスワードやTOTP秘密値をTerraform・このスクリプト・ログへ保存しない。ReactのCallback処理は未実装のため、アプリへのログイン完了確認は認証統合後に行う。
+
+Phase 3では作成済みCognitoを使い、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。Phase 4のruntime有効化前には以下を完了する。
 
 - Cognito access tokenの署名・issuer・期限・client_id・token_use・許可sub検証、およびPOST本文ハッシュの生成。
 - SQSハンドラーとownerSub検証、DynamoDBでの分散ロック・リース・永続AI予算管理、成否不明時の再試行抑制。

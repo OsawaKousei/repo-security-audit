@@ -45,7 +45,7 @@
 
 目的：AWS devと認証基盤を準備する。
 
-2026-11-01：dev向けTerraform定義を作成し、利用者のinit後、固定devドメイン構成でvalidate・テスト・Planまで確認した。共有StateのVersioning有効化だけを承認後に実施済み。Cognitoやアプリ用AWSリソースは未作成で、Phase 3全体は未完了。[準備状況と次の手順](../../infra/terraform/README.md)を参照する。
+2026-11-01：dev向けTerraform定義を作成し、利用者のinit後、固定devドメイン構成でvalidate・テスト・Planまで確認した。共有StateのVersioning有効化だけを承認後に実施済み。利用者のapplyでCognito等の21リソースを作成済み。CloudFrontエラーを修正して再apply用Plan（4件追加）を保存した。再applyと初期ユーザー作成・実認証統合は未実施で、Phase 3全体は未完了。[準備状況と次の手順](../../infra/terraform/README.md)を参照する。
 
 - Terraform Stateの設定とdev環境定義。今回は既存共有S3を利用するためbootstrapは作成しない。
 - Cognito User Pool、Managed Login、初期ユーザー、TOTP MFA。

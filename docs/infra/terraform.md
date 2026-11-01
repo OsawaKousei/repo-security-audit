@@ -8,9 +8,9 @@ AWSリソースはTerraformで管理する。ローカル開発環境の変更�
 
 2026-11-01：利用者指定により、参照元と同じ `kupacllc`・東京リージョン・既存Stateバケットを使用する。devは `repo-sentinel-dev.prj.kupac.co.jp` を使い、既存DNSゾーンにA/AAAA Aliasを作成する。指定済みのus-east-1ワイルドカードACM証明書を参照し、TLSポリシーは `TLSv1.2_2021` とする。`repo-sentinel.prj.kupac.co.jp` は将来の本番環境向けに予約する。
 
-dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。その後、利用者がinitを実行し、固定devドメイン構成でvalidate・モックテスト・Planを確認した。現行Planは26件追加・変更／削除0件。AWS上のアプリ用リソース作成は未実施。
+dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terraform](../../infra/terraform/README.md) に作成した。指定アカウント・証明書・DNSゾーン・専用Stateキーを読み取り確認し、利用者の承認後に共有StateバケットのVersioningだけをEnabledへ変更した。その後、利用者がinitを実行し、固定devドメイン構成でvalidate・モックテスト・Planを確認した。利用者のapplyは21リソース作成後にCloudFrontのOrigin Request Policyエラーで中断した。定義を修正し、4件追加・変更／削除0件の再apply用Planを保存済み。再applyは未実行。
 
-初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。CognitoのCallback／Logoutには初回からdev用HTTPS URLとlocalhostを登録し、生成URLの転記は行わない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。具体的な切替条件・確認結果は上記READMEを参照する。
+初期値 `enable_runtime=false` でCognitoと開発基盤を準備し、未完成のAPI/Worker Lambdaをデプロイしない。CognitoのCallback／Logoutには初回からdev用HTTPS URLとlocalhostを登録し、生成URLの転記は行わない。Phase 4の有効化にはZIP・npm Layer・許可sub・AWS予算設定が必要。初期ユーザーは `npm run cognito:user` の読取既定・明示作成の手順で準備する。具体的な切替条件・確認結果は上記READMEを参照する。
 
 ## 管理対象
 
@@ -26,7 +26,7 @@ dev向けのBackend・Provider・6領域のmodule・監視定義を [infra/terra
 
 CloudFrontは `/` をS3、`/api/*` をFunction URLへルーティングする。S3の公開アクセスを禁止し、両オリジンにOACを設定する。Function URLは `AWS_IAM` 認証とし、直接アクセスを拒否する。
 
-APIキャッシュを無効化する。JWT専用ヘッダーとPOSTの `x-amz-content-sha256` を含むリクエスト転送を整える。詳細は[API仕様](../plan/implementation-plan.md#api)と[セキュリティ要件](../security.md)に従う。
+APIキャッシュを無効化し、runtime有効時はAWS管理の `AllViewerExceptHostHeader` でHost以外のヘッダー・cookie・queryを転送する。JWT専用ヘッダーとPOSTの `x-amz-content-sha256` を含むリクエスト転送を整える。runtime無効時はOrigin Request Policyを付けず、503応答とする。詳細は[API仕様](../plan/implementation-plan.md#api)と[セキュリティ要件](../security.md)に従う。
 
 SQS・Lambdaの初期数値と同時実行の整合は[Worker仕様](../plan/implementation-plan.md#worker)を正とする。
 
