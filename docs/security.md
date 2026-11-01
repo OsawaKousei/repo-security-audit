@@ -2,7 +2,7 @@
 
 本書は認証・外部入力・秘密情報・費用制限の基準を定める。ローカル開発環境の変更によってこれらの要件を緩和しない。
 
-Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。Phase 2の外部入力・秘密情報・実AI・永続費用台帳は[Worker仕様](spec/local-worker.md)に実装済みの境界を記録した。ローカルCognito認証は [Phase 3仕様](spec/cognito-auth.md) に実装済みの範囲と検証限界を記録した。AWS向けの接続・分散制御の実装は [AWS runtime仕様](spec/aws-runtime.md) を参照する。実AWSの反映・疎通は未実施。
+Phase 1のlocalhost限定例外・入力検証・原子的な回数制限の実装境界は[確定仕様](spec/local-basic.md)を参照する。Phase 2の外部入力・秘密情報・実AI・永続費用台帳は[Worker仕様](spec/local-worker.md)に実装済みの境界を記録した。ローカルCognito認証は [Phase 3仕様](spec/cognito-auth.md) に実装済みの範囲と検証限界を記録した。AWS向けの接続・分散制御の実装は [AWS runtime仕様](spec/aws-runtime.md) を参照する。devへ反映し、公開HTTP/認証経路・本人のAIモック監査・終端ジョブの重複消費まで確認した。実AI等の未検証範囲は [AWS検証記録](spec/phase4-verification.md) を参照する。
 
 ## Cognito認証とユーザー認可
 

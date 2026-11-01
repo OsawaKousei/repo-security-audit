@@ -166,7 +166,7 @@ AWSが仮パスワードを生成して本人のメールへ招待を送る。�
 
 現在の仮パスワード有効期限は3日。初回ログインを進められる段階で作成し、Managed Loginで本パスワード（16文字以上・英大文字／小文字／数字／記号）への変更、認証アプリへのQR登録、6桁TOTPの確認まで続けて完了する。パスワードやTOTP秘密値をTerraform・このスクリプト・ログへ保存しない。ReactのCallback・HonoのJWT検証は実装済み。`http://localhost:5173` から初回ログインを行い、監査画面へ戻ることを確認する。契約と検証範囲は [Cognito仕様](../../docs/spec/cognito-auth.md) を参照する。
 
-Phase 3では作成済みCognitoを使い、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。以下は準備時点の要件。現在はLambda/SQS・分散予算・Secret取得・成果物作成を実装し、apply前Planまで検証済み。最新の反映手順は [AWS配布](../../docs/dev/aws-deployment.md)、契約と検証限界は [AWS runtime仕様](../../docs/spec/aws-runtime.md) を参照する。AWS予算通知は任意で、今回は設定しない。dev反映・Frontend配布・公開HTTP経路は確認済み。認証後の監査フロー・実Secret・実AI等の状況はAWS検証記録を参照する。
+Phase 3では作成済みCognitoを使い、初期ユーザー・TOTP・Frontend/Honoの実認証を統合する。以下は準備時点の要件。現在はLambda/SQS・分散予算・Secret取得・成果物作成を実装し、apply前Planまで検証済み。最新の反映手順は [AWS配布](../../docs/dev/aws-deployment.md)、契約と検証限界は [AWS runtime仕様](../../docs/spec/aws-runtime.md) を参照する。AWS予算通知は任意で、今回は設定しない。dev反映・Frontend配布・公開HTTP経路は確認済み。本人のAIモック監査もAWS上で完了した。実Secret・実AI等の状況はAWS検証記録を参照する。
 
 - 実装済みCognito認可とPOST本文ハッシュの生成をAWS経路で実検証する。
 - SQSハンドラーとownerSub検証、DynamoDBでの分散ロック・リース・永続AI予算管理、成否不明時の再試行抑制。

@@ -1,6 +1,6 @@
 # Repo Sentinel
 
-公開GitHubリポジトリのnpm依存関係を監査する個人用PoCです。Phase 2の実監査・AIに加え、**Phase 3のReact・HonoのCognito認証**を実装しています。ローカル画面からdev User Poolへログインし、本人のsubで監査・履歴を扱います。Phase 4のLambda・SQSをdevへ反映し、Frontendも配布しました。公開URLとAPIの認証境界を確認済みで、本人による監査フローは確認中です。[AWS検証記録](docs/spec/phase4-verification.md)を参照してください。[AWS配布手順](docs/dev/aws-deployment.md)を参照してください。
+公開GitHubリポジトリのnpm依存関係を監査する個人用PoCです。Phase 2の実監査・AIに加え、**Phase 3のReact・HonoのCognito認証**を実装しています。ローカル画面からdev User Poolへログインし、本人のsubで監査・履歴を扱います。Phase 4のLambda・SQSをdevへ反映し、Frontendも配布しました。公開URLとAPIの認証境界を確認済みで、本人のログインから実Workerによる監査・結果保存・レポート表示まで、AIモック構成で確認できました。[AWS検証記録](docs/spec/phase4-verification.md)を参照してください。[AWS配布手順](docs/dev/aws-deployment.md)を参照してください。
 
 ## ローカル起動
 

@@ -23,7 +23,9 @@ node scripts/verify-aws-artifacts.mjs --audit
 
 ## 今回の確認用Plan
 
-現在の `terraform.tfvars` は、有効化用の追加2ファイルにあった設定値を統合済み。`enable_runtime=true`、AIモック、予約枠なしで、AWS Budgets・SNS通知は未設定。従来のdev.tfplanはPhase 3基盤用なので、この配布には使用しない。
+環境設定は `terraform.tfvars` に統合済み。初回のAIモック構成は利用者がapplyし、Frontend配布・本人の実監査・重複通知の消費まで確認した。実績は [AWS検証記録](../spec/phase4-verification.md) を参照する。AWS Budgets・SNS通知は未設定。
+
+現在のAWSはAIモック、`terraform.tfvars` は次の実AI用設定へ更新し、追加0・更新2・削除0の切替Planを `infra/terraform/environments/dev/openai.tfplan` に準備済み。Secret値は利用者承認後に登録し、Planを再検証した。切替applyは利用者が実行するため未実施。従来のdev.tfplanや適用済みのruntime.tfplanを再使用しない。
 
 ```bash
 terraform -chdir=infra/terraform/environments/dev validate
@@ -70,6 +72,15 @@ node --env-file=.env scripts/put-dev-openai-secret.mjs --write
 `OPENAI_API_KEY` と `OPENAI_HARD_LIMIT_CONFIRMED=true` が必要。スクリプトはアカウント・dev Secret ARN/名前を検証し、権限600の一時ファイルをAWS CLIへ渡して削除する。既定では書き込まず、既存Secretも `--write` で明示した時だけ更新する。スクリプトはProjectの実設定を検証するものではない。
 
 `terraform.tfvars` の `ai_mode` を `openai`、`openai_hard_limit_confirmed` を `true` へ更新し、API/Workerを同じモードへ更新する。別Planとしてレビュー・applyしてから1件の実AI監査を確認する。鍵の値をtfvarsやStateに入れない。実AIを有効にしてもDynamoDBの予約・開始マーカーを削除しない。
+
+今回のSecret登録とPlan検証は完了している。devディレクトリで確認・適用する：
+
+```bash
+terraform show openai.tfplan
+terraform apply openai.tfplan
+```
+
+保存Planから設定や成果物を変更した場合は、`terraform plan -out=openai.tfplan` で作り直してから確認する。実AIの動作確認はapply後に行う。
 
 ## 障害・ロールバック
 

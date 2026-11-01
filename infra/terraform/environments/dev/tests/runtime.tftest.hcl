@@ -5,6 +5,9 @@ variables {
   public_domain       = "repo-sentinel-dev.prj.kupac.co.jp"
   acm_certificate_arn = "arn:aws:acm:us-east-1:103492189525:certificate/7b6cdfdb-5b63-4572-936c-f7362c471713"
   route53_zone_id     = "Z06893261CC94H6AKTJGK"
+  # Keep these scenarios independent of the operator's selected AI mode.
+  ai_mode                     = "mock"
+  openai_hard_limit_confirmed = false
 }
 
 run "runtime_contracts" {

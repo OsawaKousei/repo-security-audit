@@ -1,6 +1,6 @@
 # Phase 4：Lambda・SQS統合の実装
 
-2026-11-01にAWS向けAPI・Workerと成果物作成を実装した。ここでいうruntimeは、このリポジトリがAPI/Worker LambdaとSQSの起動接続をまとめて呼ぶ設定名。独立したAWSサービスや費用監視機能ではない。ローカル・公式Lambdaコンテナでの検証に続き、利用者がdevへapplyし、Frontendも配布済み。公開HTTP経路とCognitoフォームへの遷移を確認した。本人による監査フローは確認中で、実Secret・実AI等は未検証。最新の結果は [AWS dev検証記録](phase4-verification.md) を参照する。Phase 4全体の完了とは扱わない。[反映手順](../dev/aws-deployment.md)を参照する。
+2026-11-01にAWS向けAPI・Workerと成果物作成を実装した。ここでいうruntimeは、このリポジトリがAPI/Worker LambdaとSQSの起動接続をまとめて呼ぶ設定名。独立したAWSサービスや費用監視機能ではない。ローカル・公式Lambdaコンテナでの検証に続き、利用者がdevへapplyし、Frontendも配布済み。公開HTTP経路とCognitoフォームへの遷移を確認した。本人のAIモック監査がAWS上で完了し、DynamoDBのCOMPLETED・試行1回・対象コミットと照合した。実Secret・実AI等は未検証。最新の結果は [AWS dev検証記録](phase4-verification.md) を参照する。Phase 4全体の完了とは扱わない。[反映手順](../dev/aws-deployment.md)を参照する。
 
 ## APIとメッセージ
 
@@ -65,6 +65,6 @@ ApiFailed・AuditFailed・AiFailed・WorkerRecordFailedの構造化ログを出�
 - Terraform validateとモックテスト10件が成功。実AWSの読み取りに基づく有効化Plan（27件追加・CloudFront 1件更新・削除0件）を保存。AWS Budgets・SNSは未設定。その後、利用者がapplyし、追加のPlanは差分なしだった。
 - AWS Lambda公式Node.js 24イメージ `sha256:8466f17dcfbec19afcfefff53964fac7bc3f7975fa132d5fd74dce53004827d0`（Node v24.22.2）で、生成ZIPのロード、API 401、SQS部分失敗応答、npm Layerとundici差し替えを確認。固定した公開axios依存への実npm auditで検出JSONが返り、インストール・npmスクリプトが実行されないことも確認した。
 - 準備時のCLIプレビューは `would_publish`・`runtimeReady=false`・`would_update`・`hadCurrentVersion=false`。apply後は `runtimeReady=true` を確認し、Frontendを公開した。Secret値は更新していない。
-- 実OAC経由の未認証GET/POSTとFunction URL直接アクセス拒否、実SQS接続Enabledを確認した。認証後のジョブとWorkerの動作、実Secret・実AI・AWS予算制御・DLQ移動は [AWS dev検証記録](phase4-verification.md) で確認範囲を管理する。
+- 実OAC経由の未認証GET/POSTとFunction URL直接アクセス拒否、実SQS接続Enabledを確認した。認証後の実ジョブとWorkerの完了も確認した。実Secret・実AI・AWS予算制御・DLQ移動は [AWS dev検証記録](phase4-verification.md) で確認範囲を管理する。
 
 根拠：[SQS部分失敗](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html)、[LambdaのNode.js Layer](https://docs.aws.amazon.com/lambda/latest/dg/nodejs-layers.html)、[DynamoDBトランザクション](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html)、[Secretの取得](https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets-javascript.html)、[予約同時実行数](https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html)。
